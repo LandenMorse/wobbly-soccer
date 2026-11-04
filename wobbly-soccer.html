@@ -434,7 +434,17 @@
             { id: 'ninja',   name: 'Ninja' },
             { id: 'robot',   name: 'Robot' },
             { id: 'slime',   name: 'Slime' },
-            { id: 'magma',   name: 'Magma' }
+            { id: 'magma',   name: 'Magma' },
+            { id: 'jersey_hoops',    name: 'Hoops' },
+            { id: 'jersey_brazil',   name: 'Brazil' },
+            { id: 'jersey_pinstripe', name: 'Pinstripe' },
+            { id: 'jersey_sash',     name: 'Sash' },
+            { id: 'jersey_checker',  name: 'Checker' },
+            { id: 'jersey_retro',    name: 'Retro' },
+            { id: 'jersey_tuxedo',   name: 'Tuxedo' },
+            { id: 'jersey_hawaiian', name: 'Hawaiian' },
+            { id: 'jersey_rainbow',  name: 'Rainbow' },
+            { id: 'jersey_camo',     name: 'Camo' }
         ];
         const HATS = [
             { id: 'none',   name: 'None',      lift: 0 },
@@ -1959,6 +1969,15 @@
                     gr = g.createRadialGradient(0, r * 0.3, 2, 0, r * 0.2, r * 1.8);
                     gr.addColorStop(0, '#ffd166'); gr.addColorStop(0.45, '#e85d04'); gr.addColorStop(1, '#5c0a0a');
                     return gr;
+                case 'jersey_hoops': return '#ffffff';
+                case 'jersey_brazil': return '#f9ca24';
+                case 'jersey_pinstripe': return '#1e3a8a';
+                case 'jersey_checker': return '#ecf0f1';
+                case 'jersey_retro': return '#8e1b1b';
+                case 'jersey_tuxedo': return '#1e1e1e';
+                case 'jersey_hawaiian': return '#00b894';
+                case 'jersey_rainbow': return '#ffffff';
+                case 'jersey_camo': return '#4b5320';
                 default: return TEAM[p.playerNum];
             }
         }
@@ -2022,6 +2041,58 @@
                     g.fillStyle = `rgba(255,200,80,${0.12 + 0.1 * Math.sin(t * 0.005)})`;
                     g.fillRect(-r * 1.2, -r * 1.5, r * 2.4, r * 3.3);
                     break;
+                case 'jersey_hoops':
+                    g.fillStyle = '#e74c3c';
+                    for (let y = -1.2; y < 1.6; y += 0.6) g.fillRect(-r * 1.2, y * r, r * 2.4, r * 0.28);
+                    break;
+                case 'jersey_brazil':
+                    g.fillStyle = '#1e8449';
+                    g.fillRect(-r * 1.2, r * 0.35, r * 2.4, r * 0.4);
+                    g.fillStyle = '#2d3436';
+                    g.fillRect(-r * 1.2, -r * 1.02, r * 2.4, r * 0.2);
+                    break;
+                case 'jersey_pinstripe':
+                    g.fillStyle = 'rgba(255,255,255,0.6)';
+                    for (let x = -1.1; x < 1.2; x += 0.36) g.fillRect(x * r, -r * 1.5, r * 0.07, r * 3.3);
+                    break;
+                case 'jersey_sash':
+                    g.strokeStyle = '#ffffff'; g.lineWidth = r * 0.35; g.lineCap = 'butt';
+                    g.beginPath(); g.moveTo(-r * 1.1, -r * 1.1); g.lineTo(r * 1.1, r * 1.1); g.stroke();
+                    break;
+                case 'jersey_checker':
+                    g.fillStyle = '#1e1e1e';
+                    for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+                        if ((i + j) & 1) continue;
+                        g.fillRect(i * r * 0.4, j * r * 0.4, r * 0.4, r * 0.4);
+                    }
+                    break;
+                case 'jersey_retro':
+                    g.fillStyle = '#ffffff';
+                    g.fillRect(-r * 1.2, -r * 1.02, r * 2.4, r * 0.22);
+                    g.fillRect(-r * 1.2, r * 0.9, r * 2.4, r * 0.18);
+                    break;
+                case 'jersey_tuxedo':
+                    g.fillStyle = '#ffffff';
+                    g.beginPath(); g.ellipse(0, r * 0.5, r * 0.42, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#d63031';
+                    g.beginPath(); g.arc(0, -r * 0.2, r * 0.13, 0, Math.PI * 2); g.fill();
+                    break;
+                case 'jersey_hawaiian': {
+                    const dots = [[-0.6, -0.6, '#ff7675'], [0.5, -0.4, '#ffeaa7'], [-0.2, 0.2, '#fd79a8'], [0.7, 0.6, '#ff7675'], [-0.7, 0.9, '#ffeaa7'], [0.1, 1.1, '#fd79a8']];
+                    for (const [x, y, c] of dots) { g.fillStyle = c; g.beginPath(); g.arc(x * r, y * r, r * 0.16, 0, Math.PI * 2); g.fill(); }
+                    break;
+                }
+                case 'jersey_rainbow': {
+                    const bands = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6'];
+                    const bw = (r * 2.4) / bands.length;
+                    bands.forEach((c, i) => { g.fillStyle = c; g.fillRect(-r * 1.2 + i * bw, -r * 1.5, bw + 1, r * 3.3); });
+                    break;
+                }
+                case 'jersey_camo': {
+                    const blobs = [[-0.6, -0.5, 0.35, '#2d3a1a'], [0.5, -0.2, 0.4, '#8a7a4a'], [-0.2, 0.5, 0.38, '#c9b98a'], [0.6, 0.8, 0.32, '#2d3a1a'], [-0.7, 1.0, 0.3, '#8a7a4a']];
+                    for (const [x, y, s, c] of blobs) { g.fillStyle = c; g.beginPath(); g.ellipse(x * r, y * r, s * r, s * r * 0.7, 0.4, 0, Math.PI * 2); g.fill(); }
+                    break;
+                }
             }
         }
 
