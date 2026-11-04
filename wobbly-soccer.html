@@ -3298,12 +3298,30 @@
         // =====================================================================
         const STEP = 1000 / 60;
         let last = performance.now(), acc = 0;
-        function frame(now) {
+        function advance(now) {
             acc += Math.min(250, now - last);
             last = now;
             let steps = 0;
             while (acc >= STEP && steps < 8) { tick(); acc -= STEP; steps++; }
             if (steps === 8) acc = 0;
+        }
+        // Browsers stop requestAnimationFrame in a hidden tab, which would freeze the
+        // host's simulation (and every guest with it). A Worker timer is not throttled
+        // the same way, so while hosting a room we keep stepping the match from it.
+        let bgWorker = null;
+        function bgKeepAlive(on) {
+            try {
+                if (on && !bgWorker) {
+                    const url = URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),16)'], { type: 'text/javascript' }));
+                    bgWorker = new Worker(url);
+                    bgWorker.onmessage = () => { if (document.hidden && net.active && net.isHost) advance(performance.now()); };
+                } else if (!on && bgWorker) { bgWorker.terminate(); bgWorker = null; }
+            } catch (e) { bgWorker = null; /* no worker support: falls back to rAF only */ }
+        }
+        setInterval(() => bgKeepAlive(net.active && net.isHost), 1000);
+        function frame(now) {
+            if (!document.hidden) advance(now);
+            else last = performance.now();
             render(now);
             if (state === 'MENU') drawPreviews(now);
             requestAnimationFrame(frame);
