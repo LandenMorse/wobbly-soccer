@@ -252,6 +252,38 @@
         @media (orientation: portrait) and (pointer: coarse) {
             #rotate-hint { display: flex; }
         }
+
+        /* ---------- Online ---------- */
+        .hide { display: none !important; }
+        .online-card { width: 470px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; border-bottom: 4px solid var(--neon-blue); }
+        .online-card input {
+            width: 100%; padding: 8px 12px; border-radius: 10px; outline: none;
+            border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(0, 0, 0, 0.35);
+            color: #fff; font-size: 0.95rem; user-select: text; -webkit-user-select: text;
+        }
+        .online-card input:focus { border-color: var(--gold); }
+        .ol-row { display: flex; gap: 10px; align-items: center; }
+        .ol-row > div { flex: 1; min-width: 0; }
+        .mid-btn {
+            padding: 0.55rem 1.3rem; font-size: 0.92rem; font-weight: 800; text-transform: uppercase;
+            background: var(--gold); color: #000; border-radius: 50px; white-space: nowrap;
+        }
+        .mid-btn.ghost { background: rgba(255, 255, 255, 0.1); color: #fff; }
+        .mid-btn:disabled, .big-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+        #ol-code { text-transform: uppercase; letter-spacing: 4px; font-weight: 800; text-align: center; }
+        .room-code { font-size: 2.3rem; font-weight: 900; letter-spacing: 8px; color: var(--gold); text-align: center; line-height: 1; margin-bottom: 4px; user-select: text; -webkit-user-select: text; }
+        .ol-players { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .ol-seat {
+            padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); color: #dfe6e9;
+            font-size: 0.85rem; font-weight: 700; border-left: 4px solid; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ol-seat.t1 { border-color: var(--neon-blue); }
+        .ol-seat.t2 { border-color: var(--neon-red); }
+        .ol-seat.empty { color: #6c7a86; font-weight: 600; }
+        #ol-host-settings { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+        .ol-status { color: #a4b0be; font-size: 0.8rem; text-align: center; min-height: 1.2em; }
+        .ol-status.err { color: #ff6b6b; }
+        .ol-note { color: #6c7a86; font-size: 0.72rem; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -311,7 +343,10 @@
                 </div>
             </div>
 
-            <button id="start-btn" class="big-btn">Kick Off</button>
+            <div class="btn-row">
+                <button id="start-btn" class="big-btn">Kick Off</button>
+                <button id="online-btn" class="big-btn ghost">Play Online</button>
+            </div>
             <p class="hint">Enter: start · P / Esc: pause · M: mute · hold S / ↓ to charge a dig</p>
         </div>
 
@@ -325,12 +360,56 @@
             </div>
         </div>
 
+        <!-- Online rooms -->
+        <div id="online-screen" class="overlay hidden">
+            <h1 class="game-title" style="font-size: 2.2rem; margin-bottom: 0.8rem;">Play <span>Online</span></h1>
+            <div class="card online-card">
+                <div id="ol-setup" class="hide">
+                    <span class="mini-label">Supabase project URL</span>
+                    <input id="ol-url" placeholder="https://your-project.supabase.co" spellcheck="false" autocomplete="off">
+                    <span class="mini-label" style="margin-top: 8px;">Supabase anon (public) key</span>
+                    <input id="ol-key" placeholder="eyJhbGciOi…" spellcheck="false" autocomplete="off">
+                    <p class="ol-note" style="margin-top: 6px;">Both are in Supabase under Project Settings → API. They are saved in this browser only.</p>
+                </div>
+                <div id="ol-home">
+                    <span class="mini-label">Your name</span>
+                    <input id="ol-name" maxlength="12" placeholder="Player" spellcheck="false" autocomplete="off">
+                    <div class="ol-row" style="margin-top: 12px;">
+                        <button id="ol-create" class="mid-btn">Create room</button>
+                        <div><input id="ol-code" maxlength="4" placeholder="CODE" spellcheck="false" autocomplete="off"></div>
+                        <button id="ol-join" class="mid-btn ghost">Join</button>
+                    </div>
+                    <p class="ol-note" style="margin-top: 8px;">Your skin and hat come from the Player 1 card. The host picks the mode. Controls: W / ↑ jump · A D / ← → lean · S / ↓ dig.</p>
+                </div>
+                <div id="ol-lobby" class="hide">
+                    <span class="mini-label" style="text-align: center;">Room code</span>
+                    <div class="room-code" id="ol-room-code">----</div>
+                    <div class="ol-players" id="ol-players"></div>
+                    <div id="ol-host-settings">
+                        <div class="setting"><label>Mode</label><div class="chips tight" id="ol-mode-chips" style="flex-wrap: wrap;"></div></div>
+                        <div class="row2">
+                            <div class="setting" id="ol-length-setting"><label id="ol-length-label">First to</label><div class="chips tight" id="ol-length-chips"></div></div>
+                            <div class="setting" style="flex: none;"><label>Field</label><div class="chips tight" id="ol-field-chips"></div></div>
+                            <div class="setting" style="flex: none;"><label>Teams</label><div class="chips tight" id="ol-teams-chips"></div></div>
+                        </div>
+                    </div>
+                    <p class="ol-note" id="ol-summary" style="margin-top: 6px; text-align: center;"></p>
+                </div>
+                <p class="ol-status" id="ol-status"></p>
+            </div>
+            <div class="btn-row" style="margin-top: 14px;">
+                <button id="ol-start" class="big-btn hide">Kick Off</button>
+                <button id="ol-back" class="big-btn ghost">Back</button>
+            </div>
+        </div>
+
         <!-- Match end -->
         <div id="celebration-screen" class="overlay hidden">
             <div class="ft-label">FULL TIME</div>
             <h2 id="winner-text">Player 1 Wins!</h2>
             <div id="final-score"></div>
             <div id="match-summary"></div>
+            <p id="ol-wait" class="ol-status hide" style="margin: -0.8rem 0 1rem;">Waiting for the host to start a rematch…</p>
             <div class="btn-row">
                 <button id="rematch-btn" class="big-btn">Rematch</button>
                 <button id="menu-btn" class="big-btn ghost">Main Menu</button>
@@ -490,9 +569,20 @@
         const p3Human = () => humanMates();
         const p4Human = () => humanMates() && !isCPU();
         function saveSettings() {
+            if (net.active) return; // the host's room settings are temporary
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
         }
         const isCPU = () => settings.opponent !== 'human';
+        // Online room state (see ONLINE MULTIPLAYER below)
+        const net = {
+            active: false, isHost: false, inMatch: false, rec: false,
+            id: Math.random().toString(36).slice(2, 10), code: '', hostId: '',
+            client: null, clientCfg: '', channel: null, joinTimer: 0,
+            roster: {}, seats: {}, mySeat: 0, saved: null,
+            inputs: {}, local: { l: false, r: false, j: false, d: false }, touch: { j: false, d: false },
+            snaps: [], renderT: -1, appliedT: -1, latestT: -1, latestAt: 0,
+            fx: [], sndDepth: 0
+        };
 
         // =====================================================================
         //  SOUND (WebAudio synth, no assets)
@@ -736,6 +826,17 @@
             }
             for (const p of players) p.isBot = false;
             bots = [];
+            if (net.active) {
+                // Online: every seat without a connected player gets a bot
+                for (const p of players) {
+                    const id = net.seats[seatOf(p)], who = id && net.roster[id];
+                    p.cos = who ? [clampIdx(who.skin, SKINS), clampIdx(who.hat, HATS)] : [0, 0];
+                    if (!who) bots.push(new Bot(p, 'normal'));
+                }
+                for (const b of bots) b.p.isBot = true;
+                return;
+            }
+            for (const p of [p1, p2, p3, p4]) p.cos = null;
             if (isCPU()) bots.push(new Bot(p2, settings.opponent));
             if (two) {
                 if (!p3Human()) bots.push(new Bot(p3, 'normal'));
@@ -810,10 +911,16 @@
         const targetGoals = () => (mode().kind === 'none' ? 1 : settings.target);
         const playerName = (n) => settings.teams === 2
             ? (n === 1 ? 'Blue Team' : 'Red Team')
+            : net.active ? netSeatName(n, n === 1 ? 'Blue' : 'Red')
             : (n === 1 ? 'Player 1' : (isCPU() ? 'CPU' : 'Player 2'));
-        const actorLabel = (p) => p === p1 ? 'P1' : p === p2 ? (isCPU() ? 'CPU' : 'P2')
+        const actorLabel = (p) => net.active ? (p === myActor() ? 'YOU' : netSeatName(seatOf(p), 'BOT').toUpperCase())
+            : p === p1 ? 'P1' : p === p2 ? (isCPU() ? 'CPU' : 'P2')
             : p === p3 ? (p3Human() ? 'P3' : 'BOT')
             : (p4Human() ? 'P4' : (isCPU() ? 'CPU' : 'BOT'));
+
+        // Online players bring their own look; local play uses the team cards
+        const skinOf = (p) => p.cos ? p.cos[0] : (p.playerNum === 1 ? settings.p1Skin : settings.p2Skin);
+        const hatOf = (p) => p.cos ? p.cos[1] : (p.playerNum === 1 ? settings.p1Hat : settings.p2Hat);
 
         // =====================================================================
         //  INPUT
@@ -848,6 +955,7 @@
             return p3Human() ? p3 : p1;
         }
         function jumpTarget(code) {
+            if (net.active) return (code === 'KeyW' || code === 'ArrowUp') ? myActor() : null;
             if (code === 'KeyW') return p1;
             if (code === 'ArrowUp') return arrowsOwner();
             if (code === 'KeyT' && p3Human() && !isCPU()) return p3;
@@ -856,6 +964,7 @@
         }
 
         function digTarget(code) {
+            if (net.active) return (code === 'KeyS' || code === 'ArrowDown') ? myActor() : null;
             if (code === 'KeyS') return p1;
             if (code === 'ArrowDown') return arrowsOwner();
             if (code === 'KeyG' && p3Human() && !isCPU()) return p3;
@@ -864,6 +973,20 @@
         }
 
         function gatherInput() {
+            if (net.active) {
+                // Host: our own keys drive our seat, remote seats use their last sent input
+                const me = myActor();
+                if (me) {
+                    me.input.left = !!(keys.KeyA || keys.ArrowLeft || touchState[1].left);
+                    me.input.right = !!(keys.KeyD || keys.ArrowRight || touchState[1].right);
+                }
+                for (const s in net.inputs) {
+                    const p = seatActor(+s);
+                    if (p && p !== me && !p.isBot) { p.input.left = net.inputs[s].l; p.input.right = net.inputs[s].r; }
+                }
+                for (const b of bots) b.think();
+                return;
+            }
             const cpu = isCPU();
             const arrows = arrowsOwner();
             p1.input.left = !!(keys.KeyA || (arrows === p1 && keys.ArrowLeft) || touchState[1].left);
@@ -889,21 +1012,27 @@
             for (const p of players) { p.isCharging = false; p.chargeAmount = 0; p.digCharging = false; p.digCharge = 0; p.input.left = p.input.right = false; }
             document.querySelectorAll('.tc-btn.on').forEach(b => b.classList.remove('on'));
             AI.reset();
+            net.inputs = {};
+            net.touch.j = net.touch.d = false;
+            netLocalChanged();
         }
 
         window.addEventListener('keydown', (e) => {
+            if (e.target && e.target.tagName === 'INPUT') return;
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter'].includes(e.code)) e.preventDefault();
             keys[e.code] = true;
             if (!e.repeat) {
                 if (e.code === 'Escape' || e.code === 'KeyP') { togglePause(); return; }
                 if (e.code === 'KeyM') { toggleMute(); return; }
                 if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+                    if (net.active || !onlineScreen.classList.contains('hidden')) return;
                     if (state === 'MENU') startMatch();
                     else if (state === 'GAMEOVER') startMatch();
                     else if (state === 'PAUSED') togglePause();
                     return;
                 }
             }
+            if (isGuest()) { netLocalChanged(); return; }
             const p = jumpTarget(e.code);
             if (state === 'DUEL') {
                 if (p && !e.repeat) duelTap(p.playerNum);
@@ -915,7 +1044,9 @@
         });
 
         window.addEventListener('keyup', (e) => {
+            if (e.target && e.target.tagName === 'INPUT') return;
             keys[e.code] = false;
+            if (isGuest()) { netLocalChanged(); return; }
             const dp = digTarget(e.code);
             if (dp) releaseDig(dp);
             const p = jumpTarget(e.code);
@@ -923,11 +1054,12 @@
         });
 
         window.addEventListener('blur', () => {
+            if (net.active) { netBlur(); return; } // online matches keep running
             clearAllInput();
             if (ACTIVE_STATES.includes(state)) togglePause();
         });
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && ACTIVE_STATES.includes(state)) togglePause();
+            if (document.hidden && !net.active && ACTIVE_STATES.includes(state)) togglePause();
         });
 
         // ---------- Touch controls ----------
@@ -937,13 +1069,20 @@
             const b = document.createElement('div');
             b.className = `tc-btn p${pn} ${extra}`;
             b.textContent = label;
-            const player = pn === 1 ? p1 : p2;
+            const who = () => net.active ? myActor() : (pn === 1 ? p1 : p2);
             const down = (e) => {
                 e.preventDefault();
                 Sound.init();
                 try { b.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
                 b.classList.add('on');
-                if (act === 'jump') { if (state === 'DUEL') duelTap(pn); else pressJump(player); }
+                if (isGuest()) {
+                    if (act === 'jump' || act === 'dig') net.touch[act[0]] = true; else touchState[pn][act] = true;
+                    netLocalChanged();
+                    return;
+                }
+                const player = who();
+                if (!player) return;
+                if (act === 'jump') { if (state === 'DUEL') duelTap(player.playerNum); else pressJump(player); }
                 else if (act === 'dig') startDigCharge(player);
                 else touchState[pn][act] = true;
             };
@@ -951,6 +1090,13 @@
                 e.preventDefault();
                 if (!b.classList.contains('on')) return;
                 b.classList.remove('on');
+                if (isGuest()) {
+                    if (act === 'jump' || act === 'dig') net.touch[act[0]] = false; else touchState[pn][act] = false;
+                    netLocalChanged();
+                    return;
+                }
+                const player = who();
+                if (!player) return;
                 if (act === 'jump') releaseFor(player);
                 else if (act === 'dig') releaseDig(player);
                 else touchState[pn][act] = false;
@@ -965,12 +1111,12 @@
 
         function buildTouchControls() {
             const tc = $('touch-controls');
-            if (!isTouch) { tc.classList.add('off'); return; }
+            if (!isTouch || (net.active && !net.mySeat)) { tc.classList.add('off'); return; }
             tc.classList.remove('off');
             const L = $('tc-left'), R = $('tc-right');
             L.innerHTML = ''; R.innerHTML = '';
             L.append(makeTouchBtn('◀', 1, 'left'), makeTouchBtn('▶', 1, 'right'));
-            if (isCPU()) {
+            if (isCPU() || net.active) {
                 R.append(makeTouchBtn('DIG', 1, 'dig', 'dig'), makeTouchBtn('JUMP', 1, 'jump', 'jump'));
             } else {
                 L.append(makeTouchBtn('DIG', 1, 'dig', 'dig'), makeTouchBtn('JUMP', 1, 'jump', 'jump'));
@@ -1196,6 +1342,7 @@
         //  EFFECTS
         // =====================================================================
         function emit(x, y, n, o = {}) {
+            if (net.rec && !simulating) net.fx.push(['e', r2(x), r2(y), n, o]);
             for (let i = 0; i < n; i++) {
                 if (particles.length > 600) particles.shift();
                 const a = (o.angle ?? -Math.PI / 2) + (Math.random() - 0.5) * (o.spread ?? Math.PI * 2);
@@ -1263,6 +1410,7 @@
         }
 
         function showBanner(text, sub, color, dur, small = false) {
+            if (net.rec) net.fx.push(['b', text, sub, color, dur, small]);
             banner = { text, sub, color, dur, t: 0, small };
         }
 
@@ -1336,6 +1484,7 @@
             banner = null; flash = 0; shake = 0;
             p2TagEl.textContent = settings.teams === 2 ? (isCPU() ? 'CPU ×2' : (p4Human() ? 'P2 + P4' : 'P2 + BOT')) : (isCPU() ? 'CPU' : 'P2');
             $('p1-tag').textContent = settings.teams === 2 ? (p3Human() ? 'P1 + P3' : 'P1 + BOT') : 'P1';
+            if (net.active) netSetTags();
             setScoreUI(0);
             updateInfo();
             menuScreen.classList.add('hidden');
@@ -1356,7 +1505,19 @@
             refreshMenu();
         }
 
+        const pauseTitle = document.querySelector('#pause-screen .pause-title');
         function togglePause() {
+            const online = net.active;
+            pauseTitle.textContent = online ? 'MATCH MENU' : 'PAUSED';
+            $('resume-btn').textContent = online ? 'Back to game' : 'Resume';
+            $('pause-menu-btn').textContent = online ? 'Leave room' : 'Menu';
+            $('restart-btn').classList.toggle('hide', online);
+            if (online) {
+                // Online matches can't be paused for everyone; this is just an overlay
+                if (state === 'MENU') return;
+                pauseScreen.classList.toggle('hidden');
+                return;
+            }
             if (state === 'PAUSED') {
                 state = prevState;
                 pauseScreen.classList.add('hidden');
@@ -1403,15 +1564,25 @@
             showBanner('GOAL!', `${playerName(side)} scores` + (streak >= 2 ? ` · ${streak} in a row` : ''), TEAM[side], 115);
         }
 
-        function endMatch() {
-            state = 'GAMEOVER';
+        function showGameOver() {
             const winner = scores[1] > scores[2] ? 1 : 2;
             winnerText.textContent = `${playerName(winner)} Wins!`;
             winnerText.style.color = TEAM[winner];
             finalScoreEl.innerHTML = `<span class="s1">${scores[1]}</span> – <span class="s2">${scores[2]}</span>`;
             matchSummaryEl.textContent = `${mode().name} · ${fmtClock(Math.round(elapsed / 60))} played`;
             clearAllInput();
+            const guest = isGuest();
+            $('rematch-btn').classList.toggle('hide', guest);
+            $('ol-wait').classList.toggle('hide', !guest);
+            $('menu-btn').textContent = net.active ? (net.isHost ? 'Lobby' : 'Leave') : 'Main Menu';
+            pauseScreen.classList.add('hidden');
             celebrationScreen.classList.remove('hidden');
+        }
+
+        function endMatch() {
+            state = 'GAMEOVER';
+            const winner = scores[1] > scores[2] ? 1 : 2;
+            showGameOver();
             Sound.fanfare();
             for (let i = 0; i < 4; i++) {
                 emit(camX + 150 + i * 240, 60, 40, { color: [TEAM[winner], '#ffffff', '#f1c40f'], speed: 6, angle: Math.PI / 2, spread: Math.PI, life: 140, size: 6, gravity: 0.08, drag: 0.985, confetti: true });
@@ -1562,8 +1733,8 @@
             // Labels
             const cpu = isCPU();
             const two = settings.teams === 2;
-            const k1 = isTouch ? 'JUMP' : (cpu ? 'W / ↑' : (p3Human() ? 'W / T' : 'W'));
-            const k2 = isTouch ? 'JUMP' : (p4Human() ? '↑ / I' : '↑');
+            const k1 = (isTouch || net.active) ? 'JUMP' : (cpu ? 'W / ↑' : (p3Human() ? 'W / T' : 'W'));
+            const k2 = (isTouch || net.active) ? 'JUMP' : (p4Human() ? '↑ / I' : '↑');
             const n1 = two ? 'BLUE' : 'P1', n2 = two ? 'RED' : 'P2';
             ctx.font = '800 18px Segoe UI, Roboto, sans-serif';
             ctx.fillStyle = TEAM[1];
@@ -1626,6 +1797,12 @@
         }
 
         function tick() {
+            if (isGuest()) { guestTick(); return; }
+            tickSim();
+            if (net.rec && tickCount % SNAP_EVERY === 0 && (state !== 'GAMEOVER' || net.fx.length || tickCount % 60 === 0)) netSendSnap();
+        }
+
+        function tickSim() {
             tickCount++;
             if (state === 'MENU' || state === 'PAUSED') return;
 
@@ -2238,11 +2415,11 @@
 
         function drawMarkers() {
             for (const p of players) {
-                const lift = HATS[p.playerNum === 1 ? settings.p1Hat : settings.p2Hat].lift;
+                const lift = HATS[hatOf(p)].lift;
                 const y = Math.max(14, p.y - p.radius * 2.25 - lift);
                 ctx.fillStyle = TEAM[p.playerNum];
                 ctx.beginPath(); ctx.moveTo(p.x - 7, y - 8); ctx.lineTo(p.x + 7, y - 8); ctx.lineTo(p.x, y); ctx.closePath(); ctx.fill();
-                if (state === 'COUNTDOWN' || settings.teams === 2) {
+                if (state === 'COUNTDOWN' || settings.teams === 2 || net.active) {
                     ctx.font = '800 13px Segoe UI, Roboto, sans-serif';
                     ctx.textAlign = 'center';
                     ctx.fillText(actorLabel(p), p.x, y - 13);
@@ -2367,7 +2544,7 @@
                 drawTrails();
                 for (const p of players) {
                     const n = p.playerNum;
-                    drawPlayer(ctx, p, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, nearestBall(p), t);
+                    drawPlayer(ctx, p, skinOf(p), hatOf(p), nearestBall(p), t);
                 }
                 for (const b of balls) drawBall(ctx, b, settings.ball);
                 drawMarkers();
@@ -2494,11 +2671,15 @@
         });
 
         $('start-btn').addEventListener('click', startMatch);
-        $('rematch-btn').addEventListener('click', startMatch);
-        $('menu-btn').addEventListener('click', goMenu);
+        $('rematch-btn').addEventListener('click', () => { if (net.active) netHostStart(false); else startMatch(); });
+        $('menu-btn').addEventListener('click', () => {
+            if (!net.active) goMenu();
+            else if (net.isHost) netHostToLobby();
+            else netLeave('You left the room.');
+        });
         $('resume-btn').addEventListener('click', togglePause);
         $('restart-btn').addEventListener('click', startMatch);
-        $('pause-menu-btn').addEventListener('click', goMenu);
+        $('pause-menu-btn').addEventListener('click', () => { if (net.active) netLeave(net.isHost ? 'Room closed.' : 'You left the room.'); else goMenu(); });
         $('pause-btn').addEventListener('click', (e) => { togglePause(); e.currentTarget.blur(); });
         muteBtn.addEventListener('click', (e) => { Sound.init(); toggleMute(); e.currentTarget.blur(); });
 
@@ -2518,6 +2699,566 @@
         }
         window.addEventListener('resize', fit);
         window.addEventListener('orientationchange', fit);
+
+        // =====================================================================
+        //  ONLINE MULTIPLAYER (Supabase Realtime: broadcast + presence)
+        //  The room's host runs the real simulation. Guests send their inputs
+        //  and draw interpolated snapshots of the host's world. No database
+        //  tables are needed: a room lives entirely in one Realtime channel.
+        //  Add ?nettest to the URL to test rooms between tabs without Supabase.
+        // =====================================================================
+        const SUPABASE_URL = '';       // e.g. 'https://abcd1234.supabase.co'
+        const SUPABASE_ANON_KEY = '';  // Supabase → Project Settings → API → anon public key
+        const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+        const NET_STORE = 'wobblySoccer.online.v1';
+        const SNAP_EVERY = 3;    // host sends a snapshot every 3 ticks (20 per second)
+        const INTERP_TICKS = 6;  // guests draw ~100 ms behind the host to hide network jitter
+        const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const LOCAL_TEST = /[?&]nettest\b/.test(location.search);
+        const NET_STATES = ['COUNTDOWN', 'PLAYING', 'GOAL', 'DUEL', 'GAMEOVER'];
+        const NET_SETTING_KEYS = ['mode', 'target', 'time', 'field', 'teams', 'ball', 'arena'];
+        const FX_SOUNDS = ['kick', 'bounce', 'bump', 'jump', 'charged', 'beep', 'whistle', 'dig', 'digFull', 'goal', 'fanfare', 'tone', 'noise'];
+        const onlineScreen = $('online-screen');
+        const seatActor = (s) => ({ 1: p1, 2: p2, 3: p3, 4: p4 })[s] || null;
+        const seatOf = (p) => p === p1 ? 1 : p === p2 ? 2 : p === p3 ? 3 : p === p4 ? 4 : 0;
+        const myActor = () => net.mySeat ? seatActor(net.mySeat) : null;
+        const isGuest = () => net.active && !net.isHost;
+        function r2(v) { return Math.round(v * 100) / 100; }
+        const clampIdx = (v, list) => (Number.isInteger(v) && v >= 0 && v < list.length) ? v : 0;
+
+        const netStore = (() => { try { return JSON.parse(localStorage.getItem(NET_STORE) || '{}') || {}; } catch (e) { return {}; } })();
+        function saveNetStore() { try { localStorage.setItem(NET_STORE, JSON.stringify(netStore)); } catch (e) { /* ignore */ } }
+        const netUrl = () => SUPABASE_URL || netStore.url || '';
+        const netKey = () => SUPABASE_ANON_KEY || netStore.key || '';
+        const needsConfig = () => !LOCAL_TEST && !(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+        // Record the host's sounds so guests hear the same match
+        for (const name of FX_SOUNDS) {
+            const orig = Sound[name];
+            Sound[name] = function (...a) {
+                if (net.rec && !simulating && net.sndDepth === 0) net.fx.push(['s', name, a.map(v => typeof v === 'number' ? r2(v) : v)]);
+                net.sndDepth++;
+                try { return orig.apply(this, a); } finally { net.sndDepth--; }
+            };
+        }
+        function netUpdateRec() { net.rec = net.active && net.isHost && net.inMatch; }
+
+        // ---------- Transport ----------
+        function loadSupabase() {
+            if (window.supabase && window.supabase.createClient) return Promise.resolve();
+            return new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = SUPABASE_JS;
+                s.onload = res;
+                s.onerror = () => rej(new Error('Could not load the Supabase library. Check your internet connection.'));
+                document.head.appendChild(s);
+            });
+        }
+
+        // Same-browser stand-in for a Supabase channel (used with ?nettest)
+        class LocalChannel {
+            constructor(topic) {
+                this.bc = new BroadcastChannel(topic);
+                this.h = { broadcast: {}, presence: {} };
+                this.state = {};
+                this.me = null;
+                this.bc.onmessage = (e) => this.recv(e.data);
+            }
+            on(type, filter, cb) { (this.h[type][filter.event] = this.h[type][filter.event] || []).push(cb); return this; }
+            fire(type, ev, arg) { (this.h[type][ev] || []).forEach(f => f(arg)); }
+            subscribe(cb) { setTimeout(() => cb('SUBSCRIBED'), 30); return this; }
+            async track(meta) {
+                this.me = meta; this.state[net.id] = [meta];
+                this.bc.postMessage({ k: 'join', id: net.id, meta, hello: true });
+                this.fire('presence', 'sync');
+                return 'ok';
+            }
+            presenceState() { return this.state; }
+            async send(m) { this.bc.postMessage({ k: 'b', event: m.event, payload: m.payload }); return 'ok'; }
+            async unsubscribe() { try { this.bc.postMessage({ k: 'leave', id: net.id }); this.bc.close(); } catch (e) { /* closed */ } return 'ok'; }
+            recv(d) {
+                if (d.k === 'b') this.fire('broadcast', d.event, { event: d.event, payload: d.payload });
+                else if (d.k === 'join') {
+                    const fresh = !this.state[d.id];
+                    this.state[d.id] = [d.meta];
+                    if (d.hello && this.me) this.bc.postMessage({ k: 'join', id: net.id, meta: this.me });
+                    if (fresh) this.fire('presence', 'join', { key: d.id, newPresences: [d.meta] });
+                    this.fire('presence', 'sync');
+                } else if (d.k === 'leave') {
+                    const m = this.state[d.id];
+                    delete this.state[d.id];
+                    if (m) this.fire('presence', 'leave', { key: d.id, leftPresences: m });
+                    this.fire('presence', 'sync');
+                }
+            }
+        }
+
+        async function netMakeChannel(code) {
+            const topic = 'wobbly-soccer-' + code;
+            if (LOCAL_TEST) return new LocalChannel(topic);
+            await loadSupabase();
+            const cfg = netUrl() + '|' + netKey();
+            if (!net.client || net.clientCfg !== cfg) {
+                net.client = window.supabase.createClient(netUrl(), netKey(), { realtime: { params: { eventsPerSecond: 60 } } });
+                net.clientCfg = cfg;
+            }
+            return net.client.channel(topic, { config: { broadcast: { self: false, ack: false }, presence: { key: net.id } } });
+        }
+
+        function netSend(event, payload) {
+            if (!net.channel) return;
+            try {
+                const r = net.channel.send({ type: 'broadcast', event, payload });
+                if (r && r.catch) r.catch(() => {});
+            } catch (e) { /* dropped */ }
+        }
+
+        // ---------- Rooms ----------
+        function olStatus(msg, err) {
+            const el = $('ol-status');
+            el.textContent = msg || '';
+            el.classList.toggle('err', !!err);
+        }
+        function setOlBusy(b) { $('ol-create').disabled = b; $('ol-join').disabled = b; }
+        function randomCode() { let s = ''; for (let i = 0; i < 4; i++) s += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]; return s; }
+
+        function readOnlineForm() {
+            if (needsConfig()) {
+                netStore.url = $('ol-url').value.trim().replace(/\/+$/, '');
+                netStore.key = $('ol-key').value.trim();
+            }
+            netStore.name = ($('ol-name').value.trim() || 'Player').slice(0, 12);
+            saveNetStore();
+            if (needsConfig() && (!/^https:\/\/\S+$/.test(netUrl()) || !netKey())) {
+                olStatus('Add your Supabase project URL (https://…) and anon key first.', true);
+                return false;
+            }
+            return true;
+        }
+
+        async function netOpen(code, asHost) {
+            if (net.active || !readOnlineForm()) return;
+            const name = netStore.name;
+            olStatus(asHost ? 'Creating room…' : `Joining room ${code}…`);
+            setOlBusy(true);
+            let ch;
+            try { ch = await netMakeChannel(code); }
+            catch (err) { setOlBusy(false); olStatus(err.message || 'Could not connect.', true); return; }
+            net.saved = { ...settings };
+            Object.assign(net, {
+                active: true, isHost: asHost, inMatch: false, code, channel: ch,
+                hostId: asHost ? net.id : '', roster: {}, seats: asHost ? { 1: net.id } : {},
+                inputs: {}, snaps: [], mySeat: asHost ? 1 : 0, fx: []
+            });
+            if (asHost) { settings.opponent = 'human'; settings.mates = 'human'; }
+            netUpdateRec();
+            showOlView();
+            renderLobby();
+            ch.on('broadcast', { event: 'lobby' }, ({ payload }) => netOnLobby(payload))
+              .on('broadcast', { event: 'start' }, ({ payload }) => netOnStart(payload))
+              .on('broadcast', { event: 'snap' }, ({ payload }) => netOnSnap(payload))
+              .on('broadcast', { event: 'in' }, ({ payload }) => netOnInput(payload))
+              .on('broadcast', { event: 'tolobby' }, ({ payload }) => { if (!net.isHost && payload && payload.host === net.hostId) netBackToLobby(); })
+              .on('broadcast', { event: 'hello' }, () => { if (net.isHost) netHostSync(); })
+              .on('presence', { event: 'sync' }, () => { if (net.isHost) netHostSync(); })
+              .on('presence', { event: 'leave' }, ({ key }) => {
+                  if (!net.isHost && net.hostId && key === net.hostId) netLeave('The host left the room.', true);
+              });
+            let joined = false;
+            ch.subscribe(async (status) => {
+                if (ch !== net.channel) return;
+                if (status === 'SUBSCRIBED' && !joined) {
+                    joined = true;
+                    setOlBusy(false);
+                    try { await ch.track({ name, skin: settings.p1Skin, hat: settings.p1Hat, host: asHost, t: Date.now() }); } catch (e) { /* retried by Supabase */ }
+                    if (asHost) { olStatus('Share the room code with your friends.'); netHostSync(); }
+                    else {
+                        olStatus('Looking for the host…');
+                        netSend('hello', {});
+                        net.joinTimer = setTimeout(() => {
+                            if (net.active && !net.hostId) netLeave(`No room found with code ${code}. Check the code and try again.`, true);
+                        }, 6000);
+                    }
+                } else if (!joined && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+                    netLeave('Could not connect to Supabase. Check the project URL and anon key.', true);
+                }
+            });
+        }
+
+        function netLeave(msg, err) {
+            const ch = net.channel;
+            net.channel = null;
+            clearTimeout(net.joinTimer);
+            if (ch) {
+                try { if (net.client && !LOCAL_TEST) net.client.removeChannel(ch); else ch.unsubscribe(); } catch (e) { /* ignore */ }
+            }
+            const wasPlaying = state !== 'MENU';
+            Object.assign(net, { active: false, isHost: false, inMatch: false, code: '', hostId: '', roster: {}, seats: {}, inputs: {}, snaps: [], mySeat: 0, fx: [] });
+            netUpdateRec();
+            if (net.saved) { Object.assign(settings, net.saved); net.saved = null; }
+            for (const p of [p1, p2, p3, p4]) p.cos = null;
+            state = 'MENU';
+            CONFIG.gravity = BASE_GRAVITY;
+            CONFIG.fieldW = settings.field === 'long' ? 2048 : 1024;
+            if (wasPlaying) buildBackground();
+            clearAllInput();
+            pauseScreen.classList.add('hidden');
+            celebrationScreen.classList.add('hidden');
+            $('touch-controls').classList.add('off');
+            menuScreen.classList.add('hidden');
+            onlineScreen.classList.remove('hidden');
+            setOlBusy(false);
+            showOlView();
+            olStatus(msg || '', err);
+        }
+
+        function pickSettings() { const o = {}; for (const k of NET_SETTING_KEYS) o[k] = settings[k]; return o; }
+        function applyHostSettings(s) {
+            if (!s || typeof s !== 'object') return;
+            if (MODES[s.mode]) settings.mode = s.mode;
+            if (TARGETS.includes(s.target)) settings.target = s.target;
+            if (TIMES.includes(s.time)) settings.time = s.time;
+            if (s.field === 'standard' || s.field === 'long') settings.field = s.field;
+            if (s.teams === 1 || s.teams === 2) settings.teams = s.teams;
+            settings.ball = clampIdx(s.ball, BALLS);
+            settings.arena = clampIdx(s.arena, ARENAS);
+            settings.opponent = 'human';
+            settings.mates = 'human';
+        }
+        function netLobbyPayload() { return { host: net.id, seats: net.seats, roster: net.roster, inMatch: net.inMatch, s: pickSettings() }; }
+
+        // Host: rebuild the roster from presence and hand out seats.
+        // Seats 1 and 3 are Blue, 2 and 4 are Red. Extra people watch.
+        function netHostSync() {
+            if (!net.isHost || !net.channel) return;
+            const ps = net.channel.presenceState() || {};
+            const roster = {};
+            for (const id in ps) {
+                const m = ps[id] && ps[id][0];
+                if (m) roster[id] = { name: String(m.name || 'Player').slice(0, 12), skin: clampIdx(m.skin, SKINS), hat: clampIdx(m.hat, HATS), t: +m.t || 0 };
+            }
+            if (!roster[net.id]) roster[net.id] = { name: netStore.name || 'Player', skin: settings.p1Skin, hat: settings.p1Hat, t: 0 };
+            net.roster = roster;
+            const max = settings.teams === 2 ? 4 : 2;
+            for (const s of [2, 3, 4]) {
+                const id = net.seats[s];
+                if (!id) continue;
+                if (!roster[id] || (!net.inMatch && s > max)) {
+                    delete net.seats[s];
+                    if (net.inMatch) netSeatToBot(s);
+                }
+            }
+            if (!net.inMatch) {
+                const seated = new Set(Object.values(net.seats));
+                const waiting = Object.keys(roster).filter(id => !seated.has(id)).sort((a, b) => roster[a].t - roster[b].t);
+                for (let s = 2; s <= max && waiting.length; s++) if (!net.seats[s]) net.seats[s] = waiting.shift();
+            }
+            netSend('lobby', netLobbyPayload());
+            if (net.inMatch) netSetTags(); else renderLobby();
+        }
+
+        function netSeatToBot(s) {
+            const p = seatActor(s);
+            delete net.inputs[s];
+            if (!p || p.isBot || !players.includes(p)) return;
+            p.input.left = p.input.right = false;
+            p.isCharging = false; p.chargeAmount = 0; p.digCharging = false; p.digCharge = 0;
+            bots.push(new Bot(p, 'normal'));
+            p.isBot = true;
+            showBanner('PLAYER LEFT', 'A bot takes over', '#ffffff', 90, true);
+        }
+
+        function netHostStart(fromLobby) {
+            if (!net.isHost) return;
+            if (fromLobby && Object.keys(net.seats).length < 2) { olStatus('Waiting for at least one more player.', true); return; }
+            settings.opponent = 'human'; settings.mates = 'human';
+            net.inMatch = true; net.inputs = {}; net.fx = [];
+            onlineScreen.classList.add('hidden');
+            startMatch();
+            netUpdateRec();
+            netSend('start', netLobbyPayload());
+        }
+
+        function netEnterLobbyUI() {
+            state = 'MENU';
+            CONFIG.gravity = BASE_GRAVITY;
+            clearAllInput();
+            pauseScreen.classList.add('hidden');
+            celebrationScreen.classList.add('hidden');
+            $('touch-controls').classList.add('off');
+            onlineScreen.classList.remove('hidden');
+            showOlView();
+            renderLobby();
+        }
+        function netHostToLobby() {
+            net.inMatch = false; netUpdateRec();
+            netSend('tolobby', { host: net.id });
+            netEnterLobbyUI();
+            olStatus('Back in the lobby. Kick off when everyone is ready.');
+            netHostSync();
+        }
+        function netBackToLobby() {
+            net.inMatch = false;
+            netEnterLobbyUI();
+            olStatus(net.mySeat ? 'Waiting for the host to kick off…' : 'You are watching this room.');
+        }
+
+        function netSeatName(s, fallback) {
+            const id = net.seats[s];
+            return (id && net.roster[id] && net.roster[id].name) || fallback;
+        }
+        function netSetTags() {
+            const nm = (s) => {
+                const id = net.seats[s];
+                if (!id || !net.roster[id]) return 'BOT';
+                return id === net.id ? 'YOU' : net.roster[id].name.toUpperCase();
+            };
+            $('p1-tag').textContent = settings.teams === 2 ? `${nm(1)} + ${nm(3)}` : nm(1);
+            p2TagEl.textContent = settings.teams === 2 ? `${nm(2)} + ${nm(4)}` : nm(2);
+        }
+
+        // Guest: the host told us who is where
+        function netFromHost(m) {
+            if (!m || typeof m !== 'object' || typeof m.host !== 'string') return false;
+            if (net.hostId && m.host !== net.hostId) return false;
+            net.hostId = m.host;
+            clearTimeout(net.joinTimer);
+            net.roster = (m.roster && typeof m.roster === 'object') ? m.roster : {};
+            net.seats = (m.seats && typeof m.seats === 'object') ? m.seats : {};
+            net.mySeat = 0;
+            for (const s in net.seats) if (net.seats[s] === net.id) net.mySeat = +s;
+            return true;
+        }
+        function netOnLobby(m) {
+            if (net.isHost || !netFromHost(m)) return;
+            if (net.inMatch) { netSetTags(); return; }
+            applyHostSettings(m.s);
+            if (m.inMatch) { netOnStart(m); return; }   // joined mid-match: watch it
+            olStatus(net.mySeat ? 'Waiting for the host to kick off…' : 'The room is full, so you are watching.');
+            renderLobby();
+        }
+        function netOnStart(m) {
+            if (net.isHost || !netFromHost(m)) return;
+            applyHostSettings(m.s);
+            net.inMatch = true;
+            net.snaps = []; net.renderT = -1; net.appliedT = -1; net.latestT = -1;
+            onlineScreen.classList.add('hidden');
+            startMatch();
+        }
+
+        // ---------- Inputs ----------
+        function netLocalChanged() {
+            if (!isGuest()) return;
+            const l = !!(keys.KeyA || keys.ArrowLeft || touchState[1].left);
+            const r = !!(keys.KeyD || keys.ArrowRight || touchState[1].right);
+            const j = !!(keys.KeyW || keys.ArrowUp || net.touch.j);
+            const d = !!(keys.KeyS || keys.ArrowDown || net.touch.d);
+            const L = net.local;
+            if (L.l === l && L.r === r && L.j === j && L.d === d) return;
+            net.local = { l, r, j, d };
+            if (net.inMatch && net.mySeat) netSend('in', { id: net.id, s: net.mySeat, l, r, j, d });
+        }
+        function netOnInput(m) {
+            if (!net.isHost || !net.inMatch || !m) return;
+            const s = m.s | 0;
+            if (!m.id || m.id === net.id || net.seats[s] !== m.id) return;
+            const p = seatActor(s);
+            if (!p || p.isBot || !players.includes(p)) return;
+            const prev = net.inputs[s] || {};
+            const cur = { l: !!m.l, r: !!m.r, j: !!m.j, d: !!m.d };
+            net.inputs[s] = cur;
+            p.input.left = cur.l; p.input.right = cur.r;
+            if (cur.j && !prev.j) { if (state === 'DUEL') duelTap(p.playerNum); else pressJump(p); }
+            else if (!cur.j && prev.j) releaseFor(p);
+            if (cur.d && !prev.d) startDigCharge(p);
+            else if (!cur.d && prev.d) releaseDig(p);
+        }
+        function netBlur() {
+            for (const k in keys) keys[k] = false;
+            for (const n of [1, 2]) { touchState[n].left = false; touchState[n].right = false; }
+            net.touch.j = net.touch.d = false;
+            document.querySelectorAll('.tc-btn.on').forEach(b => b.classList.remove('on'));
+            if (isGuest()) { netLocalChanged(); return; }
+            const me = myActor();
+            if (me) { me.isCharging = false; me.chargeAmount = 0; me.digCharging = false; me.digCharge = 0; }
+        }
+
+        // ---------- Snapshots ----------
+        function netSendSnap() {
+            netSend('snap', {
+                t: tickCount, st: state, sc: [scores[1], scores[2]],
+                mf: matchFrames, ot: overtime ? 1 : 0, el: elapsed,
+                sh: r2(shake), fl: r2(flash), lk: lockFrames, lb: lockBall ? balls.indexOf(lockBall) : -1,
+                du: duel ? [r2(duel.v), duel.frames, duel.intro, duel.taps[1], duel.taps[2]] : null,
+                a: players.map(p => [r2(p.x), r2(p.y), r2(p.angle), r2(p.vx), r2(p.vy), p.chargeAmount, p.isCharging ? 1 : 0, p.digCharge, p.digCharging ? 1 : 0, p.digAnim]),
+                b: balls.map(b => [r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), r2(b.spin)]),
+                fx: net.fx.splice(0)
+            });
+        }
+        function netOnSnap(m) {
+            if (!isGuest() || !net.inMatch || !m || typeof m.t !== 'number' || !Array.isArray(m.a) || !Array.isArray(m.b)) return;
+            if (m.t <= net.latestT) return;
+            net.snaps.push(m);
+            if (net.snaps.length > 40) net.snaps.shift();
+            net.latestT = m.t;
+            net.latestAt = performance.now();
+        }
+        function netPlayFx(f) {
+            if (!Array.isArray(f)) return;
+            try {
+                if (f[0] === 'e') emit(+f[1] || 0, +f[2] || 0, Math.min(80, f[3] | 0), (f[4] && typeof f[4] === 'object') ? f[4] : {});
+                else if (f[0] === 's' && FX_SOUNDS.includes(f[1])) Sound[f[1]](...(Array.isArray(f[2]) ? f[2] : []));
+                else if (f[0] === 'b') showBanner(String(f[1]), String(f[2] || ''), String(f[3] || '#ffffff'), +f[4] || 60, !!f[5]);
+            } catch (e) { /* bad effect from the wire */ }
+        }
+        function netApplyDiscrete(s) {
+            if (Array.isArray(s.sc) && (s.sc[0] !== scores[1] || s.sc[1] !== scores[2])) {
+                const pop = s.sc[0] > scores[1] ? 1 : s.sc[1] > scores[2] ? 2 : 0;
+                scores = { 1: s.sc[0] | 0, 2: s.sc[1] | 0 };
+                setScoreUI(pop);
+            }
+            matchFrames = s.mf | 0; overtime = !!s.ot; elapsed = s.el | 0;
+            lockFrames = s.lk | 0;
+            lockBall = s.lb >= 0 ? (balls[s.lb] || null) : null;
+            duel = Array.isArray(s.du) ? { v: +s.du[0] || 0, frames: s.du[1] | 0, intro: s.du[2] | 0, taps: { 1: s.du[3] | 0, 2: s.du[4] | 0 } } : null;
+            if (s.sh > shake) shake = +s.sh;
+            if (s.fl > flash) flash = +s.fl;
+            if (NET_STATES.includes(s.st) && s.st !== state) {
+                const was = state;
+                state = s.st;
+                if (state === 'GAMEOVER') showGameOver();
+                else if (was === 'GAMEOVER') celebrationScreen.classList.add('hidden');
+            }
+            if (Array.isArray(s.fx)) for (const f of s.fx) netPlayFx(f);
+        }
+        function netInterpolate(T) {
+            const S = net.snaps;
+            if (!S.length) return;
+            let a = S[0], b = S[0];
+            for (let i = 0; i < S.length; i++) {
+                if (S[i].t <= T) a = S[i];
+                b = S[i];
+                if (S[i].t >= T) break;
+            }
+            const k = b.t > a.t ? Math.max(0, Math.min(1, (T - a.t) / (b.t - a.t))) : 0;
+            const L = (x, y) => x + (y - x) * k;
+            players.forEach((p, i) => {
+                const A = a.a[i], B = b.a[i] || A;
+                if (!Array.isArray(A)) return;
+                p.x = L(A[0], B[0]); p.y = L(A[1], B[1]); p.angle = L(A[2], B[2]);
+                p.vx = A[3]; p.vy = A[4];
+                const D = k < 0.5 ? A : B;
+                p.chargeAmount = D[5] | 0; p.isCharging = !!D[6]; p.digCharge = D[7] | 0; p.digCharging = !!D[8]; p.digAnim = D[9] | 0;
+            });
+            balls.forEach((bl, i) => {
+                const A = a.b[i], B = b.b[i] || A;
+                if (!Array.isArray(A)) return;
+                bl.x = L(A[0], B[0]); bl.y = L(A[1], B[1]);
+                bl.vx = A[2]; bl.vy = A[3]; bl.spin = L(A[4], B[4]);
+            });
+        }
+        // Guest frame: no physics, just follow the host's snapshots
+        function guestTick() {
+            tickCount++;
+            if (state === 'MENU') return;
+            if (net.latestT >= 0) {
+                const target = net.latestT + (performance.now() - net.latestAt) / STEP - INTERP_TICKS;
+                if (net.renderT < 0 || Math.abs(target - net.renderT) > 30) net.renderT = target;
+                else net.renderT += 1 + (target - net.renderT) * 0.05;
+                for (const s of net.snaps) {
+                    if (s.t > net.appliedT && s.t <= net.renderT) { netApplyDiscrete(s); net.appliedT = s.t; }
+                }
+                netInterpolate(net.renderT);
+            }
+            updateParticles();
+            updateCamera(false);
+            if (shake > 0) { shake *= 0.88; if (shake < 0.3) shake = 0; }
+            if (flash > 0) { flash -= 0.03; if (flash < 0) flash = 0; }
+            if (banner && ++banner.t >= banner.dur) banner = null;
+            if (state === 'PLAYING' || state === 'GOAL') {
+                for (const b of balls) { b.trail.push({ x: b.x, y: b.y }); if (b.trail.length > 9) b.trail.shift(); }
+            }
+            updateInfo();
+        }
+
+        // ---------- Online screen ----------
+        function showOlView() {
+            $('ol-setup').classList.toggle('hide', net.active || !needsConfig());
+            $('ol-home').classList.toggle('hide', net.active);
+            $('ol-lobby').classList.toggle('hide', !net.active);
+            $('ol-start').classList.toggle('hide', !(net.active && net.isHost));
+            $('ol-back').textContent = net.active ? 'Leave' : 'Back';
+        }
+        function renderLobby() {
+            if (!net.active) return;
+            $('ol-room-code').textContent = net.code;
+            const two = settings.teams === 2, max = two ? 4 : 2;
+            const box = $('ol-players');
+            box.innerHTML = '';
+            for (let s = 1; s <= max; s++) {
+                const id = net.seats[s], who = id && net.roster[id];
+                const d = document.createElement('div');
+                d.className = `ol-seat t${s % 2 ? 1 : 2}` + (who ? '' : ' empty');
+                d.textContent = who
+                    ? who.name + (id === net.id ? ' (you)' : '') + (id === net.hostId ? ' ★' : '')
+                    : (two ? 'Open · a bot plays here' : 'Waiting for a player…');
+                box.appendChild(d);
+            }
+            const host = net.isHost;
+            $('ol-host-settings').classList.toggle('hide', !host);
+            if (host) {
+                const m = mode();
+                const resync = () => netHostSync();
+                buildChips($('ol-mode-chips'), MODE_ORDER.map(id => ({ id, name: MODES[id].name })), it => it.id === settings.mode, it => { settings.mode = it.id; resync(); });
+                const lengthless = m.kind === 'none' || m.kind === 'endless';
+                $('ol-length-setting').style.visibility = lengthless ? 'hidden' : 'visible';
+                if (m.kind === 'time') {
+                    $('ol-length-label').textContent = 'Match time';
+                    buildChips($('ol-length-chips'), TIMES.map(s => ({ id: s, name: fmtClock(s) })), it => it.id === settings.time, it => { settings.time = it.id; resync(); });
+                } else {
+                    $('ol-length-label').textContent = 'First to';
+                    buildChips($('ol-length-chips'), TARGETS.map(n => ({ id: n, name: `${n} goals` })), it => it.id === settings.target, it => { settings.target = it.id; resync(); });
+                }
+                buildChips($('ol-field-chips'), FIELDS, it => it.id === settings.field, it => { settings.field = it.id; resync(); });
+                buildChips($('ol-teams-chips'), [{ id: 1, name: '1v1' }, { id: 2, name: '2v2' }], it => it.id === settings.teams, it => { settings.teams = it.id; resync(); });
+            }
+            const m = mode();
+            const len = m.kind === 'time' ? fmtClock(settings.time) : (m.kind === 'goals' ? `first to ${settings.target}` : '');
+            const seated = new Set(Object.values(net.seats));
+            const watchers = Object.keys(net.roster).filter(id => !seated.has(id)).length;
+            $('ol-summary').textContent = [m.name + (len ? ` · ${len}` : ''), settings.field === 'long' ? 'Long field' : 'Standard field', two ? '2v2' : '1v1',
+                watchers ? `${watchers} watching` : ''].filter(Boolean).join(' · ');
+            $('ol-start').disabled = Object.keys(net.seats).length < 2;
+        }
+
+        function openOnline() {
+            menuScreen.classList.add('hidden');
+            onlineScreen.classList.remove('hidden');
+            $('ol-name').value = netStore.name || '';
+            $('ol-url').value = netStore.url || '';
+            $('ol-key').value = netStore.key || '';
+            olStatus(LOCAL_TEST ? 'Test mode: rooms only connect tabs in this browser.' : '');
+            showOlView();
+        }
+        $('online-btn').addEventListener('click', () => { Sound.init(); Sound.click(); openOnline(); });
+        $('ol-back').addEventListener('click', () => {
+            Sound.click();
+            if (net.active) { netLeave(net.isHost ? 'Room closed.' : 'You left the room.'); return; }
+            onlineScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+            refreshMenu();
+        });
+        $('ol-create').addEventListener('click', () => { Sound.init(); Sound.click(); netOpen(randomCode(), true); });
+        const joinFromForm = () => {
+            Sound.init(); Sound.click();
+            const code = $('ol-code').value.toUpperCase().replace(/[^A-Z]/g, '');
+            if (code.length !== 4) { olStatus('Room codes are 4 letters.', true); return; }
+            netOpen(code, false);
+        };
+        $('ol-join').addEventListener('click', joinFromForm);
+        $('ol-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinFromForm(); });
+        $('ol-start').addEventListener('click', (e) => { Sound.init(); netHostStart(true); e.currentTarget.blur(); });
+        window.addEventListener('pagehide', () => { if (net.channel) try { net.channel.unsubscribe(); } catch (e) { /* ignore */ } });
 
         // =====================================================================
         //  MAIN LOOP — fixed timestep
