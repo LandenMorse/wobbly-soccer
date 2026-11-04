@@ -269,6 +269,8 @@
                     <canvas class="preview" id="p1-preview" width="320" height="320"></canvas>
                     <div class="picker" data-target="p1Skin"><span class="pick-kind">Skin</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
                     <div class="picker" data-target="p1Hat"><span class="pick-kind">Hat</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
+                    <div class="picker" data-target="p1Boots"><span class="pick-kind">Boots</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
+                    <div class="picker" data-target="p1Acc"><span class="pick-kind">Acc</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
                     <p class="keys" id="p1-keys"></p>
                 </div>
 
@@ -307,6 +309,8 @@
                     <canvas class="preview" id="p2-preview" width="320" height="320"></canvas>
                     <div class="picker" data-target="p2Skin"><span class="pick-kind">Skin</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
                     <div class="picker" data-target="p2Hat"><span class="pick-kind">Hat</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
+                    <div class="picker" data-target="p2Boots"><span class="pick-kind">Boots</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
+                    <div class="picker" data-target="p2Acc"><span class="pick-kind">Acc</span><button class="arrow" data-dir="-1">◀</button><span class="pick-label"></span><button class="arrow" data-dir="1">▶</button></div>
                     <p class="keys" id="p2-keys"></p>
                 </div>
             </div>
@@ -451,6 +455,22 @@
             { id: 'hat_santa',    name: 'Santa',        lift: 30 },
             { id: 'hat_horns',    name: 'Devil Horns',  lift: 22 }
         ];
+        const BOOTS = [
+            { id: 'none',    name: 'None' },
+            { id: 'cleats',  name: 'Cleats' },
+            { id: 'sneaks',  name: 'Sneakers' },
+            { id: 'rain',    name: 'Rain Boots' },
+            { id: 'rocket',  name: 'Rocket Boots' },
+            { id: 'gold',    name: 'Gold Boots' }
+        ];
+        const ACCESSORIES = [
+            { id: 'none',     name: 'None' },
+            { id: 'shades',   name: 'Shades' },
+            { id: 'mustache', name: 'Mustache' },
+            { id: 'bowtie',   name: 'Bow Tie' },
+            { id: 'scarf',    name: 'Scarf' },
+            { id: 'medal',    name: 'Medal' }
+        ];
         const BALLS = [
             { id: 'classic', name: 'Classic',  trail: '255,255,255' },
             { id: 'beach',   name: 'Beach',    trail: '255,209,102' },
@@ -481,7 +501,7 @@
         //  SETTINGS (persisted)
         // =====================================================================
         const STORAGE_KEY = 'wobblySoccer.settings.v2';
-        const DEFAULTS = { mode: 'classic', target: 5, time: 90, opponent: 'human', field: 'standard', teams: 1, p1Skin: 0, p1Hat: 0, p2Skin: 0, p2Hat: 0, ball: 0, arena: 0, muted: false };
+        const DEFAULTS = { mode: 'classic', target: 5, time: 90, opponent: 'human', field: 'standard', teams: 1, p1Skin: 0, p1Hat: 0, p2Skin: 0, p2Hat: 0, p1Boots: 0, p2Boots: 0, p1Acc: 0, p2Acc: 0, ball: 0, arena: 0, muted: false };
         const settings = { ...DEFAULTS };
         try {
             const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -492,7 +512,7 @@
         if (!TARGETS.includes(settings.target)) settings.target = DEFAULTS.target;
         if (!TIMES.includes(settings.time)) settings.time = DEFAULTS.time;
         if (!OPPONENTS.some(o => o.id === settings.opponent)) settings.opponent = DEFAULTS.opponent;
-        const LISTS = { p1Skin: SKINS, p2Skin: SKINS, p1Hat: HATS, p2Hat: HATS, ball: BALLS, arena: ARENAS };
+        const LISTS = { p1Skin: SKINS, p2Skin: SKINS, p1Hat: HATS, p2Hat: HATS, p1Boots: BOOTS, p2Boots: BOOTS, p1Acc: ACCESSORIES, p2Acc: ACCESSORIES, ball: BALLS, arena: ARENAS };
         for (const k in LISTS) {
             if (!Number.isInteger(settings[k]) || settings[k] < 0 || settings[k] >= LISTS[k].length) settings[k] = DEFAULTS[k];
         }
@@ -2171,7 +2191,70 @@
             }
         }
 
-        function drawPlayer(g, p, skinIdx, hatIdx, lookAt, t) {
+        // Boots: drawn at the feet, under the hat layer
+        function drawBoots(g, id, r, t) {
+            if (id === 'none') return;
+            const looks = {
+                cleats: ['#2d3436', '#ffffff'],
+                sneaks: ['#ecf0f1', '#e74c3c'],
+                rain:   ['#f1c40f', '#7f6000'],
+                rocket: ['#e84393', '#ffeaa7'],
+                gold:   ['#f9ca24', '#a67c00']
+            }[id];
+            const [body, sole] = looks;
+            for (const x of [-0.45 * r, 0.45 * r]) {
+                if (id === 'rocket') {
+                    const flick = Math.sin(t * 0.03 + x) * 0.08 * r;
+                    g.fillStyle = '#ff7675';
+                    g.beginPath(); g.moveTo(x - 0.12 * r, 1.9 * r); g.lineTo(x + 0.12 * r, 1.9 * r); g.lineTo(x, 2.25 * r + flick); g.closePath(); g.fill();
+                }
+                g.fillStyle = body;
+                g.beginPath(); g.ellipse(x, 1.72 * r, 0.36 * r, 0.22 * r, 0, 0, Math.PI * 2); g.fill();
+                g.fillStyle = sole;
+                g.fillRect(x - 0.36 * r, 1.84 * r, 0.72 * r, 0.09 * r);
+            }
+        }
+
+        // Accessories: drawn over the face, after the eyes
+        function drawAccessory(g, id, p, r, t) {
+            if (id === 'none') return;
+            const look = p.playerNum === 1 ? 1 : -1;
+            const ex = r * 0.4 * look, ey = -r * 0.4;
+            switch (id) {
+                case 'shades':
+                    g.fillStyle = '#111111';
+                    g.beginPath(); g.arc(ex, ey, 10, 0, Math.PI * 2); g.fill();
+                    g.beginPath(); g.arc(-ex, ey, 10, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = '#111111'; g.lineWidth = 3;
+                    g.beginPath(); g.moveTo(-ex, ey); g.lineTo(ex, ey); g.stroke();
+                    break;
+                case 'mustache':
+                    g.fillStyle = '#3d2314';
+                    g.beginPath(); g.ellipse(-0.22 * r, 0.12 * r, 0.3 * r, 0.1 * r, 0.35, 0, Math.PI * 2); g.fill();
+                    g.beginPath(); g.ellipse(0.22 * r, 0.12 * r, 0.3 * r, 0.1 * r, -0.35, 0, Math.PI * 2); g.fill();
+                    break;
+                case 'bowtie':
+                    g.fillStyle = '#e74c3c';
+                    g.beginPath(); g.moveTo(0, 0.95 * r); g.lineTo(-0.3 * r, 0.75 * r); g.lineTo(-0.3 * r, 1.15 * r); g.closePath(); g.fill();
+                    g.beginPath(); g.moveTo(0, 0.95 * r); g.lineTo(0.3 * r, 0.75 * r); g.lineTo(0.3 * r, 1.15 * r); g.closePath(); g.fill();
+                    g.fillStyle = '#c0392b'; g.beginPath(); g.arc(0, 0.95 * r, 0.09 * r, 0, Math.PI * 2); g.fill();
+                    break;
+                case 'scarf':
+                    g.fillStyle = '#e17055';
+                    g.fillRect(-1.0 * r, -0.2 * r, 2.0 * r, 0.22 * r);
+                    g.beginPath(); g.moveTo(look * 0.35 * r, 0.02 * r); g.lineTo(look * 0.7 * r, 0.02 * r); g.lineTo(look * 0.6 * r, 0.9 * r + Math.sin(t * 0.008) * 3); g.lineTo(look * 0.3 * r, 0.8 * r); g.closePath(); g.fill();
+                    break;
+                case 'medal': {
+                    g.strokeStyle = '#2980b9'; g.lineWidth = 3;
+                    g.beginPath(); g.moveTo(-0.3 * r, 0.1 * r); g.lineTo(look * 0.4 * r, 0.6 * r); g.stroke();
+                    g.fillStyle = '#f1c40f'; g.strokeStyle = '#b7950b'; g.lineWidth = 2;
+                    g.beginPath(); g.arc(look * 0.4 * r, 0.7 * r, 0.2 * r, 0, Math.PI * 2); g.fill(); g.stroke();
+                    break;
+                }
+            }
+        }
+
+        function drawPlayer(g, p, skinIdx, hatIdx, bootIdx, accIdx, lookAt, t) {
             const r = p.radius;
             const skin = SKINS[skinIdx].id;
             const hat = HATS[hatIdx];
@@ -2209,6 +2292,7 @@
             bodyPath(g, r); g.stroke();
 
             skinExtras(g, skin, p, r, t, hat.id);
+            drawBoots(g, BOOTS[bootIdx].id, r, t);
             drawHat(g, hat.id, p, r, t);
 
             // Eyes (pupils follow the ball)
@@ -2224,6 +2308,8 @@
             }
             g.fillStyle = '#000000';
             g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill();
+
+            drawAccessory(g, ACCESSORIES[accIdx].id, p, r, t);
 
             // Charge meter arc above head (unchanged look, lifted above hats)
             if (p.chargeAmount > 5) {
@@ -2578,7 +2664,7 @@
                 drawTrails();
                 for (const p of players) {
                     const n = p.playerNum;
-                    drawPlayer(ctx, p, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, nearestBall(p), t);
+                    drawPlayer(ctx, p, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, n === 1 ? settings.p1Boots : settings.p2Boots, n === 1 ? settings.p1Acc : settings.p2Acc, nearestBall(p), t);
                 }
                 for (const b of balls) drawBall(ctx, b, settings.ball);
                 drawMarkers();
@@ -2615,7 +2701,7 @@
                 P.chargeAmount = ph < 1.4 ? 0 : Math.min(60, Math.round((ph - 1.4) * 60));
                 g.fillStyle = 'rgba(0,0,0,0.3)';
                 g.beginPath(); g.ellipse(80, 102 + 32 * 1.7 + 2, 30, 4, 0, 0, Math.PI * 2); g.fill();
-                drawPlayer(g, P, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, null, t);
+                drawPlayer(g, P, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, n === 1 ? settings.p1Boots : settings.p2Boots, n === 1 ? settings.p1Acc : settings.p2Acc, null, t);
             }
             ballPrevCtx.setTransform(2, 0, 0, 2, 0, 0);
             ballPrevCtx.clearRect(0, 0, 30, 30);
