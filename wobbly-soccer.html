@@ -2812,6 +2812,7 @@
             let { data: { session } } = await net.client.auth.getSession();
             if (!session) {
                 const r = await net.client.auth.signInAnonymously();
+                if (r.error && (r.error.status === 429 || r.error.code === 'over_request_rate_limit')) throw new Error('Too many sign-in attempts right now. Wait a minute and try again.');
                 if (r.error || !r.data || !r.data.session) throw new Error('Could not sign in. In Supabase, turn on Authentication → Sign In / Providers → Allow anonymous sign-ins.');
                 session = r.data.session;
             }
