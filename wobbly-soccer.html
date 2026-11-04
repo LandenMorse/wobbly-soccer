@@ -577,7 +577,7 @@
         const net = {
             active: false, isHost: false, inMatch: false, rec: false,
             id: (() => { try { const a = new Uint32Array(3); crypto.getRandomValues(a); return Array.from(a, v => v.toString(36)).join('').slice(0, 14); } catch (e) { return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8); } })(), code: '', hostId: '',
-            client: null, clientCfg: '', channel: null, joinTimer: 0,
+            client: null, clientCfg: '', channel: null, joinTimer: 0, gch: null, gchs: {}, helloInfo: {}, helloTimer: 0, pred: null,
             roster: {}, seats: {}, mySeat: 0, saved: null,
             inputs: {}, local: { l: false, r: false, j: false, d: false }, touch: { j: false, d: false },
             snaps: [], renderT: -1, appliedT: -1, latestT: -1, latestAt: 0,
@@ -2714,6 +2714,9 @@
         const NET_STORE = 'wobblySoccer.online.v1';
         const SNAP_EVERY = 3;    // host sends a snapshot every 3 ticks (20 per second)
         const INTERP_TICKS = 6;  // guests draw ~100 ms behind the host to hide network jitter
+        const NET_PREDICT = !/[?&]nopredict\b/.test(location.search);  // guest draws their own player ahead of the snapshots (visual only)
+        const NET_LEAD_TICKS = 3;  // how far ahead of the newest snapshot we draw our own player (~50 ms)
+        const MAX_GUEST_LINES = 12;
         const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const LOCAL_TEST = /[?&]nettest\b/.test(location.search);
         const NET_STATES = ['COUNTDOWN', 'PLAYING', 'GOAL', 'DUEL', 'GAMEOVER'];
@@ -2796,22 +2799,53 @@
             }
         }
 
-        async function netMakeChannel(code) {
-            const topic = 'wobbly-soccer-' + code;
-            if (LOCAL_TEST) return new LocalChannel(topic);
+        // Signs in (anonymously) so every message carries a verified user id, and creates the client.
+        // Needs supabase/migrations applied and Anonymous sign-ins switched on (see supabase/README.md).
+        async function netAuth() {
+            if (LOCAL_TEST) return;
             await loadSupabase();
             const cfg = netUrl() + '|' + netKey();
             if (!net.client || net.clientCfg !== cfg) {
                 net.client = window.supabase.createClient(netUrl(), netKey(), { realtime: { params: { eventsPerSecond: 60 } } });
                 net.clientCfg = cfg;
             }
-            return net.client.channel(topic, { config: { broadcast: { self: false, ack: false }, presence: { key: net.id } } });
+            let { data: { session } } = await net.client.auth.getSession();
+            if (!session) {
+                const r = await net.client.auth.signInAnonymously();
+                if (r.error || !r.data || !r.data.session) throw new Error('Could not sign in. In Supabase, turn on Authentication → Sign In / Providers → Allow anonymous sign-ins.');
+                session = r.data.session;
+            }
+            net.id = session.user.id;
+            try { net.client.realtime.setAuth(session.access_token); } catch (e) { /* the client keeps the token fresh itself */ }
+        }
+        // ws:<CODE>:host = the room (only the host may broadcast), ws:<CODE>:g:<uid> = one guest's line to the host
+        function netChan(topic) {
+            if (LOCAL_TEST) return new LocalChannel(topic);
+            return net.client.channel(topic, { config: { private: true, broadcast: { self: false, ack: false }, presence: { key: net.id } } });
+        }
+        async function netRoomCreate(code) {
+            if (LOCAL_TEST) return true;
+            await net.client.from('rooms').delete().eq('host_id', net.id);   // one live room per player
+            const { error } = await net.client.from('rooms').insert({ code });
+            if (!error) return true;
+            if (error.code === '23505') return false;                      // code taken: caller picks another
+            throw new Error('Could not create the room. Has supabase/migrations been applied?');
+        }
+        async function netRoomHost(code) {
+            const { data, error } = await net.client.from('rooms').select('host_id').eq('code', code).maybeSingle();
+            if (error) throw new Error('Could not look up the room. Has supabase/migrations been applied?');
+            return data ? data.host_id : '';
+        }
+        function netRoomClose() {
+            if (LOCAL_TEST || !net.client || !net.isHost) return;
+            try { net.client.from('rooms').delete().eq('host_id', net.id).then(() => {}, () => {}); } catch (e) { /* ignore */ }
         }
 
         function netSend(event, payload) {
-            if (!net.channel) return;
+            const ch = (event === 'in' || event === 'hello') ? net.gch : net.channel;   // guest -> host goes on the guest's own line
+            if (!ch) return;
             try {
-                const r = net.channel.send({ type: 'broadcast', event, payload });
+                const r = ch.send({ type: 'broadcast', event, payload });
                 if (r && r.catch) r.catch(() => {});
             } catch (e) { /* dropped */ }
         }
@@ -2850,25 +2884,35 @@
             const name = netStore.name;
             olStatus(asHost ? 'Creating room…' : `Joining room ${code}…`);
             setOlBusy(true);
-            let ch;
-            try { ch = await netMakeChannel(code); }
-            catch (err) { setOlBusy(false); olStatus(err.message || 'Could not connect.', true); return; }
+            let ch, hostId = '';
+            try {
+                await netAuth();
+                if (asHost) {
+                    let ok = false;
+                    for (let i = 0; i < 5 && !ok; i++) { ok = await netRoomCreate(code); if (!ok) code = randomCode(); }
+                    if (!ok) throw new Error('Could not find a free room code. Try again.');
+                    hostId = net.id;
+                } else if (!LOCAL_TEST) {
+                    hostId = await netRoomHost(code);
+                    if (!hostId) throw new Error(`No room found with code ${code}. Check the code and try again.`);
+                } else hostId = '';
+                ch = netChan(`ws:${code}:host`);
+            } catch (err) { setOlBusy(false); olStatus(err.message || 'Could not connect.', true); return; }
             net.saved = { ...settings };
             Object.assign(net, {
                 active: true, isHost: asHost, inMatch: false, code, channel: ch,
-                hostId: asHost ? net.id : '', roster: {}, seats: asHost ? { 1: net.id } : {},
-                inputs: {}, snaps: [], mySeat: asHost ? 1 : 0, fx: []
+                hostId: asHost ? net.id : hostId, roster: {}, seats: asHost ? { 1: net.id } : {},
+                inputs: {}, snaps: [], mySeat: asHost ? 1 : 0, fx: [], gch: null, gchs: {}, helloInfo: {}, pred: null
             });
             if (asHost) { settings.opponent = 'human'; settings.mates = 'human'; }
             netUpdateRec();
             showOlView();
             renderLobby();
+            // The host channel only carries host broadcasts (RLS enforces it), so anything on it comes from the host
             ch.on('broadcast', { event: 'lobby' }, ({ payload }) => netOnLobby(payload))
               .on('broadcast', { event: 'start' }, ({ payload }) => netOnStart(payload))
               .on('broadcast', { event: 'snap' }, ({ payload }) => netOnSnap(payload))
-              .on('broadcast', { event: 'in' }, ({ payload }) => netOnInput(payload))
               .on('broadcast', { event: 'tolobby' }, ({ payload }) => { if (!net.isHost && payload && payload.host === net.hostId) netBackToLobby(); })
-              .on('broadcast', { event: 'hello' }, () => { if (net.isHost) netHostSync(); })
               .on('presence', { event: 'sync' }, () => { if (net.isHost) netHostSync(); })
               .on('presence', { event: 'leave' }, ({ key }) => {
                   if (!net.isHost && net.hostId && key === net.hostId) netLeave('The host left the room.', true);
@@ -2880,40 +2924,82 @@
                     joined = true;
                     setOlBusy(false);
                     const t0 = Date.now();
-                    try { await ch.track({ name, skin: settings.p1Skin, hat: settings.p1Hat, host: asHost, t: t0 }); } catch (e) { /* retried by Supabase */ }
+                    try { await ch.track({ host: asHost, t: t0 }); } catch (e) { /* retried by Supabase */ }
                     if (asHost) {
                         olStatus('Share the room code with your friends.'); netHostSync();
-                        // If someone else is already hosting this code, step aside instead of running two matches
-                        net.joinTimer = setTimeout(() => {
+                        // ?nettest has no rooms table, so detect a duplicate host from presence instead
+                        if (LOCAL_TEST) net.joinTimer = setTimeout(() => {
                             if (!net.active || !net.isHost || net.channel !== ch || net.inMatch) return;
                             const ps = ch.presenceState() || {};
                             for (const id in ps) if (id !== net.id && ps[id] && ps[id][0] && ps[id][0].host === true && (+ps[id][0].t || 0) <= (+t0 || 0)) {
                                 netLeave('That room code is already in use. Try again.', true); return;
                             }
                         }, 1200);
-                    }
-                    else {
+                    } else {
                         olStatus('Looking for the host…');
-                        netSend('hello', {});
+                        netOpenGuestLine(code, name);
                         net.joinTimer = setTimeout(() => {
-                            if (net.active && !net.hostId) netLeave(`No room found with code ${code}. Check the code and try again.`, true);
-                        }, 6000);
+                            if (net.active && !net.isHost) netLeave(`The host of room ${code} is not answering. Check the code and try again.`, true);
+                        }, 8000);
                     }
                 } else if (!joined && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
-                    netLeave('Could not connect to Supabase. Check the project URL and anon key.', true);
+                    netLeave('Could not connect to the room. Check the project URL and key, and that the database migrations are applied.', true);
                 }
             });
         }
 
+        // Guest: open our own line to the host and say hello until the host lists us in the lobby
+        function netOpenGuestLine(code, name) {
+            const gch = netChan(`ws:${code}:g:${net.id}`);
+            net.gch = gch;
+            gch.subscribe((status) => {
+                if (gch !== net.gch) return;
+                if (status === 'SUBSCRIBED') {
+                    const hello = () => {
+                        if (!net.active || net.isHost || net.gch !== gch || net.roster[net.id]) { clearInterval(net.helloTimer); return; }
+                        netSend('hello', { name, skin: settings.p1Skin, hat: settings.p1Hat });
+                    };
+                    clearInterval(net.helloTimer);
+                    net.helloTimer = setInterval(hello, 1000);
+                    hello();
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    netLeave('Could not open a line to the host. Check that the database migrations are applied.', true);
+                }
+            });
+        }
+
+        // Host: listen on one guest's line. The topic carries the guest's verified id, so payloads are never trusted for identity.
+        function netListenGuest(uid) {
+            if (!net.isHost || net.gchs[uid] || uid === net.id || !/^[\w-]{6,40}$/.test(uid) || Object.keys(net.gchs).length >= MAX_GUEST_LINES) return;
+            const ch = netChan(`ws:${net.code}:g:${uid}`);
+            net.gchs[uid] = ch;
+            ch.on('broadcast', { event: 'hello' }, ({ payload }) => netOnHello(uid, payload))
+              .on('broadcast', { event: 'in' }, ({ payload }) => netOnInput(uid, payload));
+            ch.subscribe(() => {});
+        }
+        function netDropGuest(uid) {
+            const ch = net.gchs[uid];
+            delete net.gchs[uid]; delete net.helloInfo[uid];
+            if (ch) try { if (net.client && !LOCAL_TEST) net.client.removeChannel(ch); else ch.unsubscribe(); } catch (e) { /* ignore */ }
+        }
+        function netOnHello(uid, m) {
+            if (!net.isHost || !m || typeof m !== 'object') return;
+            const prev = net.helloInfo[uid];
+            net.helloInfo[uid] = { name: String(m.name || 'Player').slice(0, 12), skin: clampIdx(m.skin, SKINS), hat: clampIdx(m.hat, HATS), t: prev ? prev.t : Date.now() };
+            netHostSync();
+        }
+
         function netLeave(msg, err) {
-            const ch = net.channel;
-            net.channel = null;
-            clearTimeout(net.joinTimer);
-            if (ch) {
-                try { if (net.client && !LOCAL_TEST) net.client.removeChannel(ch); else ch.unsubscribe(); } catch (e) { /* ignore */ }
+            const ch = net.channel, gch = net.gch;
+            netRoomClose();
+            net.channel = null; net.gch = null;
+            clearTimeout(net.joinTimer); clearInterval(net.helloTimer);
+            for (const uid of Object.keys(net.gchs)) netDropGuest(uid);
+            for (const c of [ch, gch]) {
+                if (c) try { if (net.client && !LOCAL_TEST) net.client.removeChannel(c); else c.unsubscribe(); } catch (e) { /* ignore */ }
             }
             const wasPlaying = state !== 'MENU';
-            Object.assign(net, { active: false, isHost: false, inMatch: false, code: '', hostId: '', roster: {}, seats: {}, inputs: {}, snaps: [], mySeat: 0, fx: [] });
+            Object.assign(net, { active: false, isHost: false, inMatch: false, code: '', hostId: '', roster: {}, seats: {}, inputs: {}, snaps: [], mySeat: 0, fx: [], gchs: {}, helloInfo: {}, pred: null });
             netUpdateRec();
             if (net.saved) { Object.assign(settings, net.saved); net.saved = null; }
             for (const p of [p1, p2, p3, p4]) p.cos = null;
@@ -2953,10 +3039,14 @@
             if (!net.isHost || !net.channel) return;
             const ps = net.channel.presenceState() || {};
             const roster = {};
+            // Presence only says who is connected. A guest joins the roster once their own line has said hello.
             for (const id in ps) {
-                const m = ps[id] && ps[id][0];
-                if (m) roster[id] = { name: String(m.name || 'Player').slice(0, 12), skin: clampIdx(m.skin, SKINS), hat: clampIdx(m.hat, HATS), t: +m.t || 0 };
+                if (id === net.id) continue;
+                netListenGuest(id);
+                const h = net.helloInfo[id];
+                if (h) roster[id] = { ...h };
             }
+            for (const id of Object.keys(net.gchs)) if (!ps[id]) netDropGuest(id);
             if (!roster[net.id]) roster[net.id] = { name: netStore.name || 'Player', skin: settings.p1Skin, hat: settings.p1Hat, t: 0 };
             net.roster = roster;
             const max = settings.teams === 2 ? 4 : 2;
@@ -3081,12 +3171,12 @@
             const L = net.local;
             if (L.l === l && L.r === r && L.j === j && L.d === d) return;
             net.local = { l, r, j, d };
-            if (net.inMatch && net.mySeat) netSend('in', { id: net.id, s: net.mySeat, l, r, j, d });
+            if (net.inMatch && net.mySeat) netSend('in', { s: net.mySeat, l, r, j, d });
         }
-        function netOnInput(m) {
+        function netOnInput(uid, m) {
             if (!net.isHost || !net.inMatch || !m) return;
             const s = m.s | 0;
-            if (!m.id || m.id === net.id || net.seats[s] !== m.id) return;
+            if (net.seats[s] !== uid) return;   // uid comes from the guest's own topic, so it cannot be forged in the payload
             const p = seatActor(s);
             if (!p || p.isBot || !players.includes(p)) return;
             const prev = net.inputs[s] || {};
@@ -3190,6 +3280,26 @@
                 bl.vx = A[2]; bl.vy = A[3]; bl.spin = L(A[4], B[4]);
             });
         }
+        // Visual-only prediction for the guest's own player. The host stays authoritative; we just stop
+        // drawing our player ~100 ms in the past: use the newest snapshot, extrapolate by its velocity, and lean right away.
+        function netPredictSelf() {
+            const p = myActor(), S = net.snaps;
+            if (!p || !S.length || state === 'MENU') return;
+            const idx = players.indexOf(p), last = S[S.length - 1], A = last.a && last.a[idx];
+            if (idx < 0 || !Array.isArray(A) || state === 'DUEL') { net.pred = null; return; }
+            const lead = Math.min(6, (performance.now() - net.latestAt) / STEP + NET_LEAD_TICKS);
+            const lean = (net.local.r ? 1 : 0) - (net.local.l ? 1 : 0);
+            const grounded = A[1] + p.radius >= CONFIG.groundY - 2;
+            let tx = A[0] + A[3] * lead + (grounded ? lean * 0.15 * lead * lead / 4 : 0);
+            let ty = A[1] + A[4] * lead;
+            if (ty + p.radius > CONFIG.groundY) ty = CONFIG.groundY - p.radius;
+            const a = net.pred;
+            if (!a || Math.abs(a.x - tx) > 120 || Math.abs(a.y - ty) > 120) net.pred = { x: tx, y: ty };   // teleport (goal reset, respawn)
+            else { a.x += (tx - a.x) * 0.5; a.y += (ty - a.y) * 0.5; }
+            p.x = net.pred.x; p.y = net.pred.y;
+            p.vx = A[3]; p.vy = A[4];
+            if (lean) p.angle += (lean * 0.6 - p.angle) * 0.3;
+        }
         // Guest frame: no physics, just follow the host's snapshots
         function guestTick() {
             tickCount++;
@@ -3202,6 +3312,7 @@
                     if (s.t > net.appliedT && s.t <= net.renderT) { netApplyDiscrete(s); net.appliedT = s.t; }
                 }
                 netInterpolate(net.renderT);
+                if (NET_PREDICT) netPredictSelf();
             }
             updateParticles();
             updateCamera(false);
