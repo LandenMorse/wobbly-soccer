@@ -446,7 +446,19 @@
             { id: 'beach',   name: 'Beach',    trail: '255,209,102' },
             { id: 'fire',    name: 'Fireball', trail: '255,120,40' },
             { id: 'neon',    name: 'Neon',     trail: '0,255,200' },
-            { id: 'eight',   name: '8-Ball',   trail: '180,180,200' }
+            { id: 'eight',   name: '8-Ball',   trail: '180,180,200' },
+            // ---- Ball cosmetics batch 4: skins with trail and goal effects ----
+            // goal: confetti colours when this ball scores. fx: 'sparkle' or 'smoke' trail particles.
+            { id: 'ball_ice',       name: 'Ice',        trail: '170,235,255', goal: ['#a8e6ff', '#ffffff', '#5bc0eb'], fx: 'sparkle' },
+            { id: 'ball_galaxy',    name: 'Starfield',  trail: '160,90,255',  goal: ['#a078ff', '#ffffff', '#3d1d7a'], fx: 'sparkle' },
+            { id: 'ball_candy',     name: 'Candy',      trail: '255,120,200', goal: ['#ff78c8', '#ffffff', '#ffd1ec'] },
+            { id: 'ball_melon',     name: 'Watermelon', trail: '255,80,110',  goal: ['#3ddc84', '#ff5068', '#1b1b1b'] },
+            { id: 'ball_retro',     name: 'Retro',      trail: '255,160,0',   goal: ['#ff9f1c', '#ffbf69', '#2b2118'], fx: 'smoke' },
+            { id: 'ball_disco',     name: 'Disco',      trail: '220,220,255', goal: ['#ffffff', '#c0c0ff', '#ff6fd8', '#6fe7ff'], fx: 'sparkle' },
+            { id: 'ball_bubble',    name: 'Bubble',     trail: '120,200,255', goal: ['#9ad8ff', '#e8f7ff', '#4aa8e8'] },
+            { id: 'ball_gold',      name: 'Solid Gold', trail: '255,215,0',   goal: ['#ffd700', '#fff3a3', '#b8860b'], fx: 'sparkle' },
+            { id: 'ball_rainbow',   name: 'Rainbow',    trail: '255,100,255', goal: ['#ff4d4d', '#ffd23f', '#3ddc84', '#4cc9f0', '#b185ff'] },
+            { id: 'ball_pixel',     name: 'Pixel',      trail: '120,255,120', goal: ['#78ff78', '#ffffff', '#000000'], fx: 'smoke' }
         ];
         const ARENAS = [
             { id: 'night',  name: 'Night Stadium', sky: ['#1e272e', '#0f1418'],            ground: 'grass', grass: ['#27ae60', '#229954'], line: 'rgba(255,255,255,0.3)', net: 'rgba(255,255,255,0.16)', post: '#ecf0f1' },
@@ -1399,7 +1411,8 @@
             flash = 0.45;
             shake = 10;
             Sound.goal();
-            emit(ball.x, ball.y, 70, { color: [TEAM[side], '#ffffff', '#f1c40f'], speed: 8, life: 70, size: 5, gravity: 0.18, drag: 0.96, confetti: true });
+            const goalPalette = BALLS[settings.ball].goal || [TEAM[side], '#ffffff', '#f1c40f'];
+            emit(ball.x, ball.y, 70, { color: goalPalette, speed: 8, life: 70, size: 5, gravity: 0.18, drag: 0.96, confetti: true });
             showBanner('GOAL!', `${playerName(side)} scores` + (streak >= 2 ? ` · ${streak} in a row` : ''), TEAM[side], 115);
         }
 
@@ -1621,6 +1634,12 @@
                 if (b.trail.length > 9) b.trail.shift();
                 if (ballSkin === 'fire' && Math.hypot(b.vx, b.vy) > 3) {
                     emit(b.x, b.y, 1, { color: ['#ffb703', '#fb5607', '#ffd166'], speed: 0.8, life: 20, size: 5, gravity: -0.05 });
+                }
+                // Batch 4 trail effects
+                const fx = BALLS[settings.ball].fx;
+                if (fx && Math.hypot(b.vx, b.vy) > 4 && tickCount % 3 === 0) {
+                    if (fx === 'sparkle') emit(b.x, b.y, 1, { color: ['#ffffff', `rgb(${BALLS[settings.ball].trail})`], speed: 0.6, life: 18, size: 2.5, gravity: 0, drag: 0.9 });
+                    else if (fx === 'smoke') emit(b.x, b.y, 1, { color: ['rgba(200,200,200,0.6)', 'rgba(120,120,120,0.5)'], speed: 0.4, life: 26, size: 4, gravity: -0.03, drag: 0.95 });
                 }
             }
         }
@@ -2147,6 +2166,109 @@
                     }
                     g.fillStyle = '#fff'; g.beginPath(); g.arc(0, 0, r * 0.25, 0, Math.PI * 2); g.fill();
                     g.strokeStyle = 'rgba(0,0,0,0.2)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_ice': {
+                    const gr = g.createRadialGradient(-r * 0.3, -r * 0.35, 1, 0, 0, r);
+                    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.6, '#bfe9ff'); gr.addColorStop(1, '#5bc0eb');
+                    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 1.5;
+                    for (let i = 0; i < 6; i++) {
+                        const a = (i * Math.PI) / 3;
+                        g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9); g.stroke();
+                    }
+                    g.strokeStyle = 'rgba(40,120,170,0.5)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_galaxy': {
+                    const gr = g.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
+                    gr.addColorStop(0, '#6a4cc4'); gr.addColorStop(1, '#14063a');
+                    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#ffffff';
+                    const stars = [[-0.4, -0.2, 1.6], [0.3, -0.5, 1.2], [0.1, 0.4, 1.8], [-0.5, 0.45, 1.1], [0.55, 0.15, 1.4], [0, -0.1, 1]];
+                    for (const [sx, sy, sr] of stars) { g.beginPath(); g.arc(sx * r, sy * r, sr, 0, Math.PI * 2); g.fill(); }
+                    g.strokeStyle = 'rgba(200,170,255,0.5)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r - 1, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_candy': {
+                    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#ff5fa2';
+                    for (let i = 0; i < 4; i++) {
+                        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, i * Math.PI / 2, i * Math.PI / 2 + Math.PI / 4); g.closePath(); g.fill();
+                    }
+                    g.strokeStyle = 'rgba(120,20,70,0.35)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_melon': {
+                    g.fillStyle = '#2e9e4f'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#e8ffe0'; g.beginPath(); g.arc(0, 0, r * 0.82, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#ff4d5e'; g.beginPath(); g.arc(0, 0, r * 0.74, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#1b1b1b';
+                    for (let i = 0; i < 8; i++) {
+                        const a = (i * Math.PI) / 4 + 0.2, d = r * 0.42;
+                        g.beginPath(); g.ellipse(Math.cos(a) * d, Math.sin(a) * d, 1.8, 3.2, a, 0, Math.PI * 2); g.fill();
+                    }
+                    break;
+                }
+                case 'ball_retro': {
+                    g.fillStyle = '#ffbf69'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.fillStyle = '#2b2118';
+                    for (let i = 0; i < 3; i++) {
+                        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, i * 2.09 + 0.3, i * 2.09 + 0.9); g.closePath(); g.fill();
+                    }
+                    g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_disco': {
+                    g.fillStyle = '#c9c9dc'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    const tiles = [[-0.45, -0.2, '#ffffff'], [0.2, -0.45, '#9fd8ff'], [0.4, 0.2, '#ffffff'], [-0.2, 0.4, '#ff9ee6'], [-0.5, 0.5, '#9fd8ff']];
+                    for (const [tx, ty, c] of tiles) {
+                        g.fillStyle = c; g.fillRect(tx * r - r * 0.18, ty * r - r * 0.18, r * 0.36, r * 0.36);
+                    }
+                    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-r * 0.35, -r * 0.5, r * 0.22, r * 0.1, -0.6, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = 'rgba(40,40,70,0.4)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_bubble': {
+                    const gr = g.createRadialGradient(-r * 0.35, -r * 0.35, 1, 0, 0, r);
+                    gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.5, 'rgba(120,200,255,0.45)'); gr.addColorStop(1, 'rgba(60,150,230,0.6)');
+                    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = 'rgba(40,120,200,0.6)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r - 0.5, 0, Math.PI * 2); g.stroke();
+                    g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.ellipse(-r * 0.4, -r * 0.45, r * 0.22, r * 0.12, -0.7, 0, Math.PI * 2); g.fill();
+                    break;
+                }
+                case 'ball_gold': {
+                    const gr = g.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
+                    gr.addColorStop(0, '#fff8c4'); gr.addColorStop(0.5, '#ffd700'); gr.addColorStop(1, '#b8860b');
+                    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = 'rgba(120,80,0,0.55)'; g.lineWidth = 1.5;
+                    g.beginPath(); g.arc(0, 0, r * 0.65, 0, Math.PI * 2); g.stroke();
+                    g.beginPath(); g.arc(0, 0, r * 0.3, 0, Math.PI * 2); g.stroke();
+                    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_rainbow': {
+                    const cols = ['#ff4d4d', '#ffd23f', '#3ddc84', '#4cc9f0', '#b185ff', '#ff6fd8'];
+                    for (let i = 0; i < 6; i++) {
+                        g.fillStyle = cols[i];
+                        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, (i * Math.PI) / 3, ((i + 1) * Math.PI) / 3); g.closePath(); g.fill();
+                    }
+                    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, 0, r * 0.22, 0, Math.PI * 2); g.fill();
+                    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+                    break;
+                }
+                case 'ball_pixel': {
+                    g.fillStyle = '#1d3b2a'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+                    g.save(); g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.clip();
+                    const px = Math.max(3, r * 0.42);
+                    g.fillStyle = '#78ff78';
+                    for (let y = -r; y < r; y += px) {
+                        for (let x = -r; x < r; x += px) {
+                            if (((Math.floor(x / px) + Math.floor(y / px)) & 1) === 0) g.fillRect(x, y, px, px);
+                        }
+                    }
+                    g.restore();
+                    g.strokeStyle = '#000'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, r - 1, 0, Math.PI * 2); g.stroke();
                     break;
                 }
                 case 'fire': {
