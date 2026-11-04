@@ -2202,7 +2202,7 @@
                     break;
                 case 'hat_headband':
                     g.save();
-                    g.strokeStyle = team; g.lineWidth = 0.22 * r; g.lineCap = 'round';
+                    g.strokeStyle = '#ffffff'; g.lineWidth = 0.22 * r; g.lineCap = 'round';
                     g.beginPath(); g.arc(0, -0.2 * r, r * 1.02, Math.PI * 1.2, Math.PI * 1.8); g.stroke();
                     g.restore();
                     break;
@@ -2266,7 +2266,7 @@
         function drawBoots(g, id, r, t) {
             if (id === 'none') return;
             const looks = {
-                cleats: ['#2d3436', '#ffffff'],
+                cleats: ['#dfe6e9', '#2d3436'],
                 sneaks: ['#ecf0f1', '#e74c3c'],
                 rain:   ['#f1c40f', '#7f6000'],
                 rocket: ['#e84393', '#ffeaa7'],
@@ -2769,7 +2769,7 @@
                 g.clearRect(0, 0, 160, 160);
                 P.angle = Math.sin(t * 0.003 + n) * 0.12;
                 const ph = (t / 1000 + n * 0.7) % 3;
-                P.chargeAmount = ph < 1.4 ? 0 : Math.min(60, Math.round((ph - 1.4) * 60));
+                P.chargeAmount = 0; // no charge arc in the menu preview (it read like a halo)
                 g.fillStyle = 'rgba(0,0,0,0.3)';
                 g.beginPath(); g.ellipse(80, 102 + 32 * 1.7 + 2, 30, 4, 0, 0, Math.PI * 2); g.fill();
                 drawPlayer(g, P, n === 1 ? settings.p1Skin : settings.p2Skin, n === 1 ? settings.p1Hat : settings.p2Hat, n === 1 ? settings.p1Boots : settings.p2Boots, n === 1 ? settings.p1Acc : settings.p2Acc, null, t);
