@@ -1,10 +1,12 @@
 # Wobbly Soccer
 
-A physics soccer game. Open `wobbly-soccer.html` in a browser to play (keep it next to the `cosmetics/` folder), or run `node tools/cosmetics.js build` to get a single self-contained file at `dist/wobbly-soccer.html`.
+A physics soccer game. **Play it in your browser at https://landenmorse.github.io/wobbly-soccer/**, or download `wobbly-soccer.html` and open it. It is one self-contained file (all cosmetics are inlined), so it works straight from disk or from any web host.
+
+The hosted copy is redeployed by `.github/workflows/pages.yml` on every push to `main`. Use the hosted link (or any web server) for Play Online, since online sign-in expects an http(s) page; local play works from a file too.
 
 ## Cosmetics
 
-Skins, hats, boots, accessories, balls and arenas are data-driven: each lives in a pack file under `cosmetics/packs/` and is registered with a stable id. Click any picker's name in the menu to browse a category as a searchable grid. To add items, read [`docs/COSMETICS.md`](docs/COSMETICS.md); `node tools/cosmetics.js check` validates and render-audits every item.
+Skins, hats, boots, accessories, balls and arenas are data-driven: each lives in a pack file under `cosmetics/packs/` and is registered with a stable id. Click any picker's name in the menu to browse a category as a searchable grid. The pack files are the source of truth: `node tools/cosmetics.js sync` inlines them into `wobbly-soccer.html` (it runs automatically with `new` and `check`), so commit both. To add items, read [`docs/COSMETICS.md`](docs/COSMETICS.md); `node tools/cosmetics.js check` validates and render-audits every item.
 
 ## Online multiplayer
 

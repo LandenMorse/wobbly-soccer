@@ -4,13 +4,13 @@
  * (the browser checks use Playwright if it is available).
  *
  *   node tools/cosmetics.js new <category> <name>   scaffold cosmetics/packs/<category>-<name>.js and register it
- *   node tools/cosmetics.js sync                    rewrite the pack <script> list in wobbly-soccer.html from cosmetics/packs/
+ *   node tools/cosmetics.js sync                    inline cosmetics/registry.js and every pack into wobbly-soccer.html (one self-contained file)
  *   node tools/cosmetics.js check [--pack P] [--json] [--static]
  *                                                   validate every item (schema in Node, then a render audit in headless Chromium)
  *   node tools/cosmetics.js sheet <category> [--pack P] [--out file.png]
  *                                                   render a contact sheet of items for visual review
  *   node tools/cosmetics.js list                    counts per category and pack
- *   node tools/cosmetics.js build                   write dist/wobbly-soccer.html with everything inlined (one file)
+ *   node tools/cosmetics.js build                   sync, then copy the result to dist/wobbly-soccer.html
  *
  * See docs/COSMETICS.md.
  */
@@ -45,16 +45,25 @@ function packFiles() {
     return { files: [...base, ...rest], bad };
 }
 
+// The registry and every pack are inlined into wobbly-soccer.html so the game is one
+// self-contained file: it plays when opened straight from disk or hosted anywhere, with no
+// cosmetics/ folder next to it. The files under cosmetics/ stay the source of truth.
+function inlineScript(rel) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/<\/script/gi, '<\\/script').replace(/\s+$/, '');
+    return `<script data-src="${rel}">\n${src}\n    </script>`;
+}
+
 function sync(quiet) {
     const { files, bad } = packFiles();
     const html = fs.readFileSync(HTML, 'utf8');
     const a = html.indexOf(BEGIN), b = html.indexOf(END);
     if (a < 0 || b < a) die('wobbly-soccer.html is missing the COSMETIC PACKS markers');
     const indent = '    ';
-    const block = BEGIN + '\n' + files.map(f => `${indent}<script src="cosmetics/packs/${f}"></script>`).join('\n') + (files.length ? '\n' : '') + indent + END;
+    const scripts = ['cosmetics/registry.js', ...files.map(f => `cosmetics/packs/${f}`)].map(inlineScript);
+    const block = BEGIN + '\n' + scripts.map(t => indent + t).join('\n') + '\n' + indent + END;
     const next = html.slice(0, a) + block + html.slice(b + END.length);
     if (next !== html) fs.writeFileSync(HTML, next);
-    if (!quiet) console.log(`sync: ${files.length} pack files listed in wobbly-soccer.html${next === html ? ' (no change)' : ''}`);
+    if (!quiet) console.log(`sync: registry and ${files.length} pack files inlined into wobbly-soccer.html (${(next.length / 1024).toFixed(0)} KB)${next === html ? ' (no change)' : ''}`);
     if (bad.length) console.warn(`sync: ignored files that do not match <category>-<name>.js: ${bad.join(', ')}`);
     return files;
 }
@@ -210,17 +219,13 @@ function scaffold() {
     console.log(`new: wrote ${path.relative(ROOT, file)} and listed it in wobbly-soccer.html`);
 }
 
+// Same file as wobbly-soccer.html after a sync, copied to dist/ (kept for old instructions and scripts).
 function build() {
-    const files = sync(true);
-    let html = fs.readFileSync(HTML, 'utf8');
-    const inline = (rel) => `<script>/* ${rel} */\n${fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/<\/script/gi, '<\\/script')}</script>`;
-    html = html.replace('<script src="cosmetics/registry.js"></script>', () => inline('cosmetics/registry.js'));
-    for (const f of files) html = html.replace(`<script src="cosmetics/packs/${f}"></script>`, () => inline(`cosmetics/packs/${f}`));
-    if (/<script src="cosmetics\//.test(html)) die('build: some cosmetics scripts were not inlined');
+    sync(true);
     const out = path.join(ROOT, 'dist', 'wobbly-soccer.html');
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, html);
-    console.log(`build: ${path.relative(ROOT, out)} (${(html.length / 1024).toFixed(0)} KB, ${files.length} packs inlined)`);
+    fs.copyFileSync(HTML, out);
+    console.log(`build: ${path.relative(ROOT, out)} (${(fs.statSync(out).size / 1024).toFixed(0)} KB, self-contained)`);
 }
 
 (async () => {
