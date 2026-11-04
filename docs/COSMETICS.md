@@ -13,14 +13,14 @@ node tools/cosmetics.js sheet hat --pack hat-cowboys   # renders dist/sheet-hat-
 
 Then open `wobbly-soccer.html` in a browser and click the name in any picker (for example the hat name) to see every item in a searchable grid.
 
-**Only ever touch your own pack file.** Do not edit `cosmetics/registry.js`, other people's packs, or `wobbly-soccer.html` by hand. The one part of `wobbly-soccer.html` that changes when you add a pack is the block between `<!-- COSMETIC PACKS ... -->` and `<!-- /COSMETIC PACKS -->`, and `node tools/cosmetics.js sync` (run automatically by `new` and `check`) writes it. If two branches both add packs and that block conflicts in a merge, take either side and run `node tools/cosmetics.js sync` again.
+**Only ever touch your own pack file.** Do not edit `cosmetics/registry.js`, other people's packs, or `wobbly-soccer.html` by hand. The one part of `wobbly-soccer.html` that changes when you add a pack is the block between `<!-- COSMETIC PACKS ... -->` and `<!-- /COSMETIC PACKS -->`, and `node tools/cosmetics.js sync` (run automatically by `new` and `check`) writes it, inlining the registry and every pack so the game stays one self-contained file. Commit `wobbly-soccer.html` along with your pack. If two branches both add packs and that block conflicts in a merge, take either side and run `node tools/cosmetics.js sync` again.
 
 ## How it fits together
 
 - `cosmetics/registry.js` is the engine: it validates items, stores them by id, draws them through one renderer per category, and caches static items as sprites.
 - `cosmetics/packs/<category>-<name>.js` are pack files. Each one calls `Cosmetics.define(...)` once with a list of items of a single category. `*-base.js` hold the original items.
 - `wobbly-soccer.html` loads the registry, then every pack, then the game.
-- `node tools/cosmetics.js build` writes `dist/wobbly-soccer.html`, a single self-contained file with everything inlined, for sharing.
+- `node tools/cosmetics.js build` copies the synced, self-contained `wobbly-soccer.html` to `dist/` (the root file is already shareable on its own).
 
 ## A pack file
 
