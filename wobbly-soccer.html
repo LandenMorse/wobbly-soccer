@@ -576,7 +576,7 @@
         // Online room state (see ONLINE MULTIPLAYER below)
         const net = {
             active: false, isHost: false, inMatch: false, rec: false,
-            id: Math.random().toString(36).slice(2, 10), code: '', hostId: '',
+            id: (() => { try { const a = new Uint32Array(3); crypto.getRandomValues(a); return Array.from(a, v => v.toString(36)).join('').slice(0, 14); } catch (e) { return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8); } })(), code: '', hostId: '',
             client: null, clientCfg: '', channel: null, joinTimer: 0,
             roster: {}, seats: {}, mySeat: 0, saved: null,
             inputs: {}, local: { l: false, r: false, j: false, d: false }, touch: { j: false, d: false },
@@ -2710,6 +2710,7 @@
         const SUPABASE_URL = 'https://arqtzivzpmouvkbavzzr.supabase.co';       // e.g. 'https://abcd1234.supabase.co'
         const SUPABASE_ANON_KEY = 'sb_publishable_qRc5U079YTHeIEmd7ZbchQ_1QKpbki5';  // Supabase → Project Settings → API → anon public key
         const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+        const SUPABASE_JS_SRI = 'sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb';  // pinned: a tampered CDN file will not run
         const NET_STORE = 'wobblySoccer.online.v1';
         const SNAP_EVERY = 3;    // host sends a snapshot every 3 ticks (20 per second)
         const INTERP_TICKS = 6;  // guests draw ~100 ms behind the host to hide network jitter
@@ -2749,6 +2750,8 @@
             return new Promise((res, rej) => {
                 const s = document.createElement('script');
                 s.src = SUPABASE_JS;
+                s.integrity = SUPABASE_JS_SRI;
+                s.crossOrigin = 'anonymous';
                 s.onload = res;
                 s.onerror = () => rej(new Error('Could not load the Supabase library. Check your internet connection.'));
                 document.head.appendChild(s);
@@ -2820,7 +2823,13 @@
             el.classList.toggle('err', !!err);
         }
         function setOlBusy(b) { $('ol-create').disabled = b; $('ol-join').disabled = b; }
-        function randomCode() { let s = ''; for (let i = 0; i < 4; i++) s += CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]; return s; }
+        function randomCode() {
+            const r = new Uint32Array(4);
+            try { crypto.getRandomValues(r); } catch (e) { for (let i = 0; i < 4; i++) r[i] = Math.random() * 4294967296; }
+            let s = '';
+            for (let i = 0; i < 4; i++) s += CODE_CHARS[r[i] % CODE_CHARS.length];
+            return s;
+        }
 
         function readOnlineForm() {
             if (needsConfig()) {
@@ -2870,8 +2879,19 @@
                 if (status === 'SUBSCRIBED' && !joined) {
                     joined = true;
                     setOlBusy(false);
-                    try { await ch.track({ name, skin: settings.p1Skin, hat: settings.p1Hat, host: asHost, t: Date.now() }); } catch (e) { /* retried by Supabase */ }
-                    if (asHost) { olStatus('Share the room code with your friends.'); netHostSync(); }
+                    const t0 = Date.now();
+                    try { await ch.track({ name, skin: settings.p1Skin, hat: settings.p1Hat, host: asHost, t: t0 }); } catch (e) { /* retried by Supabase */ }
+                    if (asHost) {
+                        olStatus('Share the room code with your friends.'); netHostSync();
+                        // If someone else is already hosting this code, step aside instead of running two matches
+                        net.joinTimer = setTimeout(() => {
+                            if (!net.active || !net.isHost || net.channel !== ch || net.inMatch) return;
+                            const ps = ch.presenceState() || {};
+                            for (const id in ps) if (id !== net.id && ps[id] && ps[id][0] && ps[id][0].host === true && (+ps[id][0].t || 0) <= (+t0 || 0)) {
+                                netLeave('That room code is already in use. Try again.', true); return;
+                            }
+                        }, 1200);
+                    }
                     else {
                         olStatus('Looking for the host…');
                         netSend('hello', {});
@@ -3021,6 +3041,11 @@
         function netFromHost(m) {
             if (!m || typeof m !== 'object' || typeof m.host !== 'string') return false;
             if (net.hostId && m.host !== net.hostId) return false;
+            if (!net.hostId) {
+                // Only believe a host that is announced as one in presence, so a stray peer cannot claim the room first
+                const pm = net.channel && net.channel.presenceState ? (net.channel.presenceState() || {})[m.host] : null;
+                if (!pm || !pm[0] || pm[0].host !== true) return false;
+            }
             net.hostId = m.host;
             clearTimeout(net.joinTimer);
             net.roster = (m.roster && typeof m.roster === 'object') ? m.roster : {};
@@ -3103,11 +3128,19 @@
             net.latestT = m.t;
             net.latestAt = performance.now();
         }
+        // Sound arguments come off the wire: keep them finite and quiet so a rogue peer cannot blast or crash audio
+        function netSafeSoundArgs(name, args) {
+            if (!Array.isArray(args)) return [];
+            const out = args.slice(0, 6).map(v => typeof v === 'number' && isFinite(v) ? Math.max(-5000, Math.min(5000, v)) : (['sine', 'square', 'triangle', 'sawtooth'].includes(v) ? v : 0));
+            if (name === 'tone') { if (typeof out[1] === 'number') out[1] = Math.max(0, Math.min(2, out[1])); if (typeof out[3] === 'number') out[3] = Math.max(0, Math.min(0.4, out[3])); if (typeof out[5] === 'number') out[5] = Math.max(0, Math.min(2, out[5])); if (typeof out[2] === 'number') out[2] = 'sine'; }
+            if (name === 'noise') { if (typeof out[0] === 'number') out[0] = Math.max(0, Math.min(2, out[0])); if (typeof out[1] === 'number') out[1] = Math.max(0, Math.min(0.4, out[1])); if (typeof out[4] === 'number') out[4] = Math.max(0, Math.min(2, out[4])); }
+            return out;
+        }
         function netPlayFx(f) {
             if (!Array.isArray(f)) return;
             try {
                 if (f[0] === 'e') emit(+f[1] || 0, +f[2] || 0, Math.min(80, f[3] | 0), (f[4] && typeof f[4] === 'object') ? f[4] : {});
-                else if (f[0] === 's' && FX_SOUNDS.includes(f[1])) Sound[f[1]](...(Array.isArray(f[2]) ? f[2] : []));
+                else if (f[0] === 's' && FX_SOUNDS.includes(f[1])) Sound[f[1]](...netSafeSoundArgs(f[1], f[2]));
                 else if (f[0] === 'b') showBanner(String(f[1]), String(f[2] || ''), String(f[3] || '#ffffff'), +f[4] || 60, !!f[5]);
             } catch (e) { /* bad effect from the wire */ }
         }
