@@ -1,6 +1,10 @@
 # Wobbly Soccer
 
-A physics soccer game in a single HTML file. Open `wobbly-soccer.html` in a browser to play.
+A physics soccer game. Open `wobbly-soccer.html` in a browser to play (keep it next to the `cosmetics/` folder), or run `node tools/cosmetics.js build` to get a single self-contained file at `dist/wobbly-soccer.html`.
+
+## Cosmetics
+
+Skins, hats, boots, accessories, balls and arenas are data-driven: each lives in a pack file under `cosmetics/packs/` and is registered with a stable id. Click any picker's name in the menu to browse a category as a searchable grid. To add items, read [`docs/COSMETICS.md`](docs/COSMETICS.md); `node tools/cosmetics.js check` validates and render-audits every item.
 
 ## Online multiplayer
 
